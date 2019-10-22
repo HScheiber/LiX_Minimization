@@ -1,9 +1,9 @@
 function N_Supercell = OptimizationLoopFC(gmx,Cry,Salt,Structure,Model,Label,N_Supercell,Maindir,...
     MDP,Longest_Cutoff,Coordinate_text,Settings,Topology_text,TableFile,...
-    EnergySetting,Fname,pin,Hash)
+    EnergySetting,Fname,pin)
     
     % Name for all temp files of this type
-    FileBase = [Salt '_' Label '_' Model '_' Hash '_' Fname];
+    FileBase = [Salt '_' Label '_' Model '_' Fname];
     
     % Assign lattice parameter (a)
     % Find shortest lattice parameter
@@ -14,7 +14,7 @@ function N_Supercell = OptimizationLoopFC(gmx,Cry,Salt,Structure,Model,Label,N_S
 
     % Update Directory
     Current_Directory = fullfile(Maindir,Salt,...
-        Structure,[Model '_' Hash],Fname);
+        Structure,Model,Fname);
 
     % Create directory if it does not exist
     if ~exist(Current_Directory,'dir')
@@ -209,8 +209,16 @@ function N_Supercell = OptimizationLoopFC(gmx,Cry,Salt,Structure,Model,Label,N_S
         eneconv_cmd = ['wsl source ~/.bashrc; echo ' EnergySetting ' ^| gmx_d energy -f ' ...
             windows2unix(Energy_file) ' -o ' windows2unix(Energy_output)];
     elseif isunix
-        eneconv_cmd = ['echo ' EnergySetting ' | ' gmx ' energy -f ' ...
-            Energy_file ' -o ' Energy_output];
+        [~,Servertxt] = system('hostname -s | cut -c 1-3');
+        Server = strtrim(Servertxt);
+        if strcmpi(Server,'pat') 
+            eneconv_cmd = ['source /home/user/Documents/MATLAB/.matlabrc; echo ' ...
+                EnergySetting ' | gmx_d energy -f ' ...
+                Energy_file ' -o ' Energy_output];
+        else
+            eneconv_cmd = ['echo ' EnergySetting ' | ' gmx ' energy -f ' ...
+                Energy_file ' -o ' Energy_output];
+        end
     end
 
     % Run it

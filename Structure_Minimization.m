@@ -13,28 +13,28 @@
 % Metal ion (i.e. Li or Na) and X refers to the Halide ion (i.e. F, Cl, Br,
 % or I)
 %
-% JC 2 x 2 matrix:   ?_M    ?_X                (units: nm)
-%                    ?_M    ?_X                (units: kJ/mol)
+% JC 2 x 2 matrix:   sigma_M      sigma_X                (units: nm)
+%                    epsilon_M    epsilon_X              (units: kJ/mol)
 %
 % When using a 2 x 2 array with the JC model, 
 % the Lorenz-Berthelot mixing rules are assumed.
 % 
 %
-% JC 2 x 3 array:   ?_MM    ?_XX    ?_MX       (units: nm)
-%                   ?_MM    ?_XX    ?_MX       (units: kJ/mol)
+% JC 2 x 3 array:   sigma_MM    sigma_XX    sigma_MX       (units: nm)
+%                   epsilon_MM  epsilon_XX  epsilon_MX       (units: kJ/mol)
 %
 % When using a 2 x 3 array with the JC model, mixing rules are not used.
 %
 %
-% TF 4 x 3 array:   ?_MM    ?_XX    ?_MX       (units: nm^-1)
-%                   B_MM    B_XX    B_MX       (units: kJ/mol)
-%                   C_MM    C_XX    C_MX       (units: (kJ nm^6)/mol)
-%                   D_MM    D_XX    D_MX       (units: (kJ nm^8)/mol)
+% TF 4 x 3 array:   alpha_MM    alpha_XX    alpha_MX       (units: nm^-1)
+%                   B_MM        B_XX        B_MX       (units: kJ/mol)
+%                   C_MM        C_XX        C_MX       (units: (kJ nm^6)/mol)
+%                   D_MM        D_XX        D_MX       (units: (kJ nm^8)/mol)
 %
 % No combining rules are defined for the TF model.
 function Output_Array = Structure_Minimization(Salt,Structure,Model,Parameters,OptPos)
 %% Structure Settings
-Parallel_Mode = false; % If set to true, this will pin the GROMACS process to a single thread
+Parallel_Mode = true; % If set to true, this will pin the GROMACS process to a single thread
 Data_Types = 1; % Allowed data types for automatic search of initial conditions (0 = not optimized, 1 = cell optimized, 2 = full optimized, 3 = atom optimized only)
 Continue_if_no_IC = true; % When true, uses input initial conditions if none are found in data. When false, does not attempt calculation if no IC are in data.
 Find_Min_Params = true; % When true, finds lowest energy parameters for IC based on Data_Types. When false, uses input IC
@@ -247,17 +247,6 @@ if ~ischar(Salt)
     error('Input variable ''Salt'' must be a character array')
 end
 
-%% Generate SHA-1 hash of parameter matrix for uniqueness
-% Convert Parameters into a byte array called B...
-B = typecast(Parameters(:),'uint8');
-
-% Create an instance of a Java MessageDigest with the desired algorithm:
-md = java.security.MessageDigest.getInstance('SHA-1');
-md.update(B);
-
-% Properly format the computed hash as an hexadecimal string:
-Hash = reshape(dec2hex(typecast(md.digest(),'uint8'))',1,[]);
-
 %% Check current computer for matlab-gromacs interface
 Longest_Cutoff = max([MDP.RList_Cutoff MDP.RCoulomb_Cutoff MDP.RVDW_Cutoff]);
 Maindir = Settings.Submission_dir;
@@ -268,7 +257,7 @@ if ispc % for testing
 elseif isunix
     [~,Servertxt] = system('hostname -s | cut -c 1-3');
     Server = strtrim(Servertxt);
-    if strcmp(Server,'ced') || strcmp(Server,'cdr') 
+    if strcmp(Server,'ced') || strcmp(Server,'cdr')
         gmx = 'gmx_d';
         if Parallel_Mode
             setenv('OMP_NUM_THREADS','1'); %#ok<*UNRCH>
@@ -281,7 +270,7 @@ elseif isunix
             pin = '';
         end
     elseif strcmp(Server,'pat')
-        gmx = 'gmx_d';
+        gmx = 'source /home/user/Documents/MATLAB/.matlabrc; gmx_d';
         if Parallel_Mode
             setenv('OMP_NUM_THREADS','1');
             setenv('GMX_PME_NUM_THREADS','1');
@@ -434,7 +423,7 @@ Topology_Temp_Struct = strrep(Topology_Temp_Struct,'##N##',num2str(N_Supercell))
 
 % Update Directory
 Current_Directory = fullfile(Maindir,Salt,...
-    Structure,[Model '_' Hash]);
+    Structure,Model);
 
 % Create directory if it does not exist
 if ~exist(Current_Directory,'dir')
@@ -474,7 +463,7 @@ if strcmp(Model,'TF')
     [TF_U_PM, TF_U_PP, TF_U_MM] = TF_Potential_Generator(0,...
         Settings.Table_Length,Settings.Tab_StepSize,Salt,Parameters,false);
 
-    TableName = [Salt '_' Model '_' Hash '_Table'];
+    TableName = [Salt '_' Model '_Table'];
     TableFile = fullfile(Current_Directory,[TableName '.xvg']);
 
     % Save tables into current directory
@@ -573,7 +562,7 @@ elseif strcmp(Model,'JC') && (any(Parameters <= 0,'all') || M_Par == 3)
     [JC_U_PM, JC_U_PP, JC_U_MM] = JC_Potential_Generator(0,...
         Settings.Table_Length,Settings.Tab_StepSize,Salt,Parameters,false);            
 
-    TableName = [Salt '_' Model '_' Hash '_Table'];
+    TableName = [Salt '_' Model '_Table'];
     TableFile = fullfile(Current_Directory,[TableName '.xvg']);
 
     % Save tables into current directory
@@ -607,11 +596,11 @@ Topology_File = fullfile(Current_Directory,...
     [Salt '_' Label '_' Model '.top']);
 
 TotalTimer = tic;
-disp(['Beginning ' Salt ' ' Structure ' ' Model ' (ID = ' Hash ') Optimization...'])
+disp(['Beginning ' Salt ' ' Structure ' ' Model ' Optimization...'])
 topol_created = false; % Keep track of whether or not topology file has been generated
 
 % Update directory details
-FileBase = [Salt '_' Label '_' Model '_' Hash '_' OptTxt];
+FileBase = [Salt '_' Label '_' Model '_' OptTxt];
 
 if ispc
     OptDir = [Current_Directory filesep OptTxt];
@@ -668,7 +657,7 @@ for Index = 1:MaxCycles
 
     OptimizationLoop(gmx,Cry,Salt,Structure,Model,Label,N_Supercell,...
         Maindir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
-        Topology_text,TableFile,EnergySetting,OptTxt,pin,Hash);
+        Topology_text,TableFile,EnergySetting,OptTxt,pin);
 
     disp(['********************Cycle ' num2str(Index) ' Initial Conditions********************']);
     disp(['Lattice Parameter a = ' num2str(Cry.(Structure).a,'%2.8f') ' ' char(0197) '.']);
@@ -693,7 +682,7 @@ for Index = 1:MaxCycles
     end
     OptimizationLoop(gmx,CryMinus_a,Salt,Structure,Model,Label,N_Supercell,...
         Maindir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
-        Topology_text,TableFile,EnergySetting,OptTxt,pin,Hash);
+        Topology_text,TableFile,EnergySetting,OptTxt,pin);
     E_Minus_a = GrabEnergy(OptDir,FileBase);
 
     Telap = datestr(seconds(toc(TotalTimer)),'HH:MM:SS');
@@ -709,7 +698,7 @@ for Index = 1:MaxCycles
     end
     OptimizationLoop(gmx,CryPlus_a,Salt,Structure,Model,Label,N_Supercell,...
         Maindir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
-        Topology_text,TableFile,EnergySetting,OptTxt,pin,Hash);
+        Topology_text,TableFile,EnergySetting,OptTxt,pin);
     E_Plus_a = GrabEnergy(OptDir,FileBase);
 
     Telap = datestr(seconds(toc(TotalTimer)),'HH:MM:SS');
@@ -727,7 +716,7 @@ for Index = 1:MaxCycles
 
         OptimizationLoop(gmx,CryMinus_b,Salt,Structure,Model,Label,N_Supercell,...
             Maindir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
-            Topology_text,TableFile,EnergySetting,OptTxt,pin,Hash);
+            Topology_text,TableFile,EnergySetting,OptTxt,pin);
         E_Minus_b = GrabEnergy(OptDir,FileBase);
 
         Telap = datestr(seconds(toc(TotalTimer)),'HH:MM:SS');
@@ -740,7 +729,7 @@ for Index = 1:MaxCycles
 
         OptimizationLoop(gmx,CryPlus_b,Salt,Structure,Model,Label,N_Supercell,...
             Maindir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
-            Topology_text,TableFile,EnergySetting,OptTxt,pin,Hash);
+            Topology_text,TableFile,EnergySetting,OptTxt,pin);
         E_Plus_b = GrabEnergy(OptDir,FileBase);
 
         Telap = datestr(seconds(toc(TotalTimer)),'HH:MM:SS');
@@ -759,7 +748,7 @@ for Index = 1:MaxCycles
 
         OptimizationLoop(gmx,CryMinus_c,Salt,Structure,Model,Label,N_Supercell,...
             Maindir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
-            Topology_text,TableFile,EnergySetting,OptTxt,pin,Hash)
+            Topology_text,TableFile,EnergySetting,OptTxt,pin)
         E_Minus_c = GrabEnergy(OptDir,FileBase);
 
         Telap = datestr(seconds(toc(TotalTimer)),'HH:MM:SS');
@@ -772,7 +761,7 @@ for Index = 1:MaxCycles
 
         OptimizationLoop(gmx,CryPlus_c,Salt,Structure,Model,Label,N_Supercell,...
             Maindir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
-            Topology_text,TableFile,EnergySetting,OptTxt,pin,Hash)
+            Topology_text,TableFile,EnergySetting,OptTxt,pin)
         E_Plus_c = GrabEnergy(OptDir,FileBase);
 
         Telap = datestr(seconds(toc(TotalTimer)),'HH:MM:SS');
@@ -812,7 +801,7 @@ for Index = 1:MaxCycles
         % Recalculate energy at new point
         OptimizationLoop(gmx,CryNew,Salt,Structure,Model,Label,N_Supercell,...
             Maindir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
-            Topology_text,TableFile,EnergySetting,OptTxt,pin,Hash);
+            Topology_text,TableFile,EnergySetting,OptTxt,pin);
         E_New = GrabEnergy(OptDir,FileBase);
 
         if E_New > E - alpha*Gamma*norm(Gradient)^2
@@ -869,7 +858,7 @@ for Index = 1:MaxCycles
         N_Supercell_out = OptimizationLoopFC(gmx,CryNew,Salt,Structure,...
             Model,Label,N_Supercell,...
             Maindir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
-            Topology_text,TableFile,EnergySettingAlt,OptTxt,pin,Hash);
+            Topology_text,TableFile,EnergySettingAlt,OptTxt,pin);
 
         E_New = GrabEnergyFinal(OptDir,FileBase);
         disp(['Geometry Optimized W.R.T. Atomic Positions. ' char(916) 'E = ' num2str(E_New-E,'%4.10f') ' kJ/mol']);
@@ -952,7 +941,7 @@ for Index = 1:MaxCycles
         disp(['Energy convergence reached after ' num2str(Index) ' cycles.' newline 'Final recalculation of energy...'])
         OptimizationLoop(gmx,Cry,Salt,Structure,Model,Label,N_Supercell,...
             Maindir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
-            Topology_text,TableFile,EnergySetting,OptTxt,pin,Hash);
+            Topology_text,TableFile,EnergySetting,OptTxt,pin);
 
         E = GrabEnergy(OptDir,FileBase);
         system(rm_command);
@@ -982,7 +971,7 @@ for Index = 1:MaxCycles
 end
 
 Telap = datestr(seconds(toc(TotalTimer)),'HH:MM:SS');
-disp(['Completed: ' Salt ' ' Structure ' ' Model ' (ID = ' Hash ') Geometry Optimization. Time ' Telap])
+disp(['Completed: ' Salt ' ' Structure ' ' Model ' Geometry Optimization. Time ' Telap])
 if ~skip_results
     disp(['Final Optimized Energy is ' num2str(E,'%4.10f') ' kJ/mol'])
     disp(['Lattice Parameter a = ' num2str(Cry.(Structure).a,'%2.8f') ' ' char(0197) '.']);
