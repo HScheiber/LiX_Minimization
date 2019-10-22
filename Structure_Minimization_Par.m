@@ -3,6 +3,7 @@
 function Output_Array =  Structure_Minimization_Par(Salt,Model,Parameters,OptPos)
     % Pre-construct output array and list of structures to compute
     Structures = {'Rocksalt' 'Wurtzite' 'Sphalerite' 'CsCl' 'NiAs' 'BetaBeO' 'FiveFive'};
+
     N = length(Structures);
     Output_Array = cell(1,N);
     
@@ -23,6 +24,7 @@ function Output_Array =  Structure_Minimization_Par(Salt,Model,Parameters,OptPos
     % Run in parallel with parfavel
     for idx = partitions
         f(idx) = parfeval(ppool,@Structure_Minimization,1,Salt,Structures{idx},Model,Parameters,OptPos);
+
     end
     wait(f);
     
