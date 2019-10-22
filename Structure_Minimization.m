@@ -265,7 +265,7 @@ elseif isunix
             setenv('GMX_PME_NTHREADS','1');
             setenv('GMX_OPENMP_MAX_THREADS','1');
             setenv('KMP_AFFINITY','disabled');
-            pin = ' -pin on';
+            pin = ' -pin on -nt 1 -ntmpi 1 -ntomp 1';
         else
             pin = '';
         end
@@ -277,7 +277,7 @@ elseif isunix
             setenv('GMX_PME_NTHREADS','1');
             setenv('GMX_OPENMP_MAX_THREADS','1');
             setenv('KMP_AFFINITY','disabled');
-            pin = ' -pin on';
+            pin = ' -pin on -nt 1 -ntmpi 1 -ntomp 1';
         else
             pin = '';
         end
