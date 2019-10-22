@@ -8,16 +8,16 @@ The main script is called “Structure_Minimization.m”. This takes as input:
 
 
 # INFO ABOUT INPUTS
-Model is a string. One of 'JC' or 'TF'. Sets the mathematical form of the model to use.
+`Model` is a string. One of 'JC' or 'TF'. Sets the mathematical form of the model to use.
 
-Salt is a string. Can be any of: 'LiF' 'LiCl' 'LiBr' 'LiI' 'NaCl'
+`Salt` is a string. Can be any of: 'LiF' 'LiCl' 'LiBr' 'LiI' 'NaCl'
 
-Structure is a string. Can be any of: 'Rocksalt' 'Wurtzite' 'Sphalerite' 'CsCl' 'NiAs' 'BetaBeO' 'FiveFive'
+`Structure` is a string. Can be any of: 'Rocksalt' 'Wurtzite' 'Sphalerite' 'CsCl' 'NiAs' 'BetaBeO' 'FiveFive'
 
-OptPos is a Boolean. When TRUE it allows for the optimization of lattice parameters AND fractional coordinates. When FALSE it only optimizes lattice parameters, fixing the fractional coordinates in place.
-	Note that when fractional coordinates are fixed, one structure will never converge towards a different structure. Hence this option was useful if I wanted to get (for example) an idea of LiF wurtzite energy, even though it wasn’t a true local minimum. 
-	Also, this script maintains the overall symmetry of the space group. Therefore, all unit cell angles are held fixed for all structures, and some relationships between cell parameters are fixed as well (e.g. rocksalt a = b = c).
-	It would not be too much work for me to remove this constraint, but I very much doubt it would change the results significantly. 
+`OptPos` is a Boolean. When TRUE it allows for the optimization of lattice parameters AND fractional coordinates. When FALSE it only optimizes lattice parameters, fixing the fractional coordinates in place.
+* Note that when fractional coordinates are fixed, one structure will never converge towards a different structure. Hence this option was useful if I wanted to get (for example) an idea of LiF wurtzite energy, even though it wasn’t a true local minimum. 
+* Also, this script maintains the overall symmetry of the space group. Therefore, all unit cell angles are held fixed for all structures, and some relationships between cell parameters are fixed as well (e.g. rocksalt a = b = c).
+* It would not be too much work for me to remove this constraint, but I very much doubt it would change the results significantly. 
 
 
 Parameters is and N x M matrix of floats, N and M depend on the chosen model. 
