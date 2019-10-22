@@ -8,8 +8,8 @@ function Output_Array =  Structure_Minimization_Par(Salt,Model,Parameters,OptPos
     Output_Array = cell(1,N);
     
     % Create a unique filename based on the current time for the log file
-    filename = [char(datetime(now,'ConvertFrom','datenum','format','yyyy-MM-dd-HH:mm:ss')) ...
-        '_' Salt '_' Model '_All.log'];
+    filename = [char(datetime(now,'ConvertFrom','datenum','format','yyyy-MM-dd_HH.mm.ss')) ...
+        '_' Salt '_' Model '.log'];
 
     % Set up matlab parallel features
     Parcores = feature('numcores');
