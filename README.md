@@ -59,17 +59,17 @@ D_MM    D_XX    D_MX       (units: (kJ nm^8)/mol)
 No mixing rules are defined for the TF model.
 
 
-The output from the Structure_Minimization script is a 1 x 10 numeric array which contains the following information in order:
-Output[1]  = Lattice energy in kJ/mol of formula units (i.e. energy per mole of ion pairs)
-Output[2]  = Length of parameter a
-Output[3]  = Length of parameter b
-Output[4]  = Length of parameter c
-Output[5]  = Fractional coordinate x of the metal ion within the asymmetric unit
-Output[6]  = Fractional coordinate y of the metal ion within the asymmetric unit
-Output[7]  = Fractional coordinate z of the metal ion within the asymmetric unit
-Output[8]  = Fractional coordinate x of the halide ion within the asymmetric unit
-Output[9]  = Fractional coordinate y of the halide ion within the asymmetric unit
-Output[10] = Fractional coordinate z of the halide ion within the asymmetric unit
+The output from the Structure_Minimization script is a 1 x 10 numeric array which contains the following information in order:  
+`Output[1]  = Lattice energy in kJ/mol of formula units (i.e. energy per mole of ion pairs)`  
+`Output[2]  = Length of parameter a`  
+`Output[3]  = Length of parameter b`  
+`Output[4]  = Length of parameter c`  
+`Output[5]  = Fractional coordinate x of the metal ion within the asymmetric unit`  
+`Output[6]  = Fractional coordinate y of the metal ion within the asymmetric unit`  
+`Output[7]  = Fractional coordinate z of the metal ion within the asymmetric unit`  
+`Output[8]  = Fractional coordinate x of the halide ion within the asymmetric unit`  
+`Output[9]  = Fractional coordinate y of the halide ion within the asymmetric unit`  
+`Output[10] = Fractional coordinate z of the halide ion within the asymmetric unit`  
 
 This information (plus the input structure) is enough to uniquely determine the unit cell of any of the 7 candidate structures, as long as the space group of the unit cell is held fixed.
 It turns out that all 7 of the candidate structures have only a single ion pair within their asymmetric unit.
