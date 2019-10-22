@@ -30,22 +30,22 @@ Metal ion (i.e. Li or Na) and X refers to the Halide ion (i.e. F, Cl, Br,
 or I)
 
 JC 2 x 2 matrix:
-`σ_M     σ_X        (units: nm)  
- ε_M     ε_X        (units: kJ/mol)` 
+σ_M     σ_X        (units: nm)  
+ε_M     ε_X        (units: kJ/mol) 
 
 When using a 2 x 2 array with the JC model, 
 the Lorenz-Berthelot mixing rules are assumed.
 
 
-JC 2 x 3 array:   σ_MM    σ_XX    σ_MX       (units: nm)
+JC 2 x 3 array:   σ_MM    σ_XX    σ_MX       (units: nm)  
                   ε_MM    ε_XX    ε_MX       (units: kJ/mol)
 
 When using a 2 x 3 array with the JC model, mixing rules are not used.
 
 
-TF 4 x 3 array:   α_MM    α_XX    α_MX       (units: nm^-1)
-                  B_MM    B_XX    B_MX       (units: kJ/mol)
-                  C_MM    C_XX    C_MX       (units: (kJ nm^6)/mol)
+TF 4 x 3 array:   α_MM    α_XX    α_MX       (units: nm^-1)  
+                  B_MM    B_XX    B_MX       (units: kJ/mol)  
+                  C_MM    C_XX    C_MX       (units: (kJ nm^6)/mol)  
                   D_MM    D_XX    D_MX       (units: (kJ nm^8)/mol)
 
 No mixing rules are defined for the TF model.
