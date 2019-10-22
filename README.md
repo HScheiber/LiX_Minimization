@@ -29,8 +29,11 @@ Below are descriptions of the Parameter matrix options. M refers to the
 Metal ion (i.e. Li or Na) and X refers to the Halide ion (i.e. F, Cl, Br,
 or I)
 
-JC 2 x 2 matrix:  | σ_M  |  σ_X | (units: nm) |
-                  | ε_M  |  ε_X | (units: kJ/mol) | 
+JC 2 x 2 matrix:
+| | | |
+|---|---|---|
+| σ_M  |  σ_X | (units: nm) |
+| ε_M  |  ε_X | (units: kJ/mol) | 
 
 When using a 2 x 2 array with the JC model, 
 the Lorenz-Berthelot mixing rules are assumed.
