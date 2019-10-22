@@ -1,124 +1,21 @@
-% Jung-Cheatham model parameters adapted for three water models with
-% Lorenz-Berthelot combining rules
-% Use Watermodel = 'SPC/E', 'TIP3P', or 'TIP4PEW'
-% Generates pair potential energy surfaces from 'Startpoint' up to a given
+% Generates Jung-Cheatham pair potential energy tables from 'Startpoint' up to a given
 % length input 'Endpoint'. Plotswitch is a logical true or false to
 % determine whether to plot the resulting potentials
 % Recommended spacing is 0.005 angstroms or 0.0005 nm
-% INPUT UNITS MUST BE ALL IN NANOMETERS. OUTPUTS ARE IN NANOMETERS AND
-% kJ/mol
-% DS is the dispersion scaling factor (should only affect the r6 term)
-% ES is the epsilon scaling factor (increases well depth)
-function [U_PM_out, U_PP_out, U_MM_out] = JC_Potential_Generator(Startpoint,Endpoint,Spacing,Salt,Watermodel,plotswitch,DS,ES)
-%% Conversion factors
-nm_per_Ang = 0.1; % nm per Angstrom
-kJ_per_kcal = 4.184; % kj per kcal
+% INPUT parameters units are: Energy = kJ/mol, length = nm
+% OUTPUT units are: Energy = kJ/mol, length = nm
+% These units are used in GROMACS by default.
+function [U_PM_out, U_PP_out, U_MM_out] = JC_Potential_Generator(Startpoint,...
+    Endpoint,Spacing,Salt,Parameters,plotswitch)
 
 %% Conversion factors and fundamental constants
-kj_per_erg = 1e-10; % kJ per erg
-Ang_per_cm = 1e+8; % Angstroms per cm
-nm_per_cm = 1e+7; % nm per cm
-Ang_per_m = 1e+10; % Angstroms per m
 nm_per_m = 1e+9; % nm per m
 NA = 6.0221409e23; % Molecules per mole
 e_c = 1.60217662e-19; % Elementary charge in Coulombs
 epsilon_0 = (8.854187817620e-12)*1000/(nm_per_m*NA); % Vacuum Permittivity C^2 mol kJ^-1 nm^-1
 k_0 = 1/(4*pi*epsilon_0); % Coulomb constant in kJ nm C^-2 mol^-1
-C_unit = 1e-60; % erg cm^6
-D_unit = 1e-76; % erg cm^8
 
 [Metal,Halide] = Separate_Metal_Halide(Salt);
-
-%% JC Ion Parameters in SPC/E water
-if strcmp(Watermodel,'SPC/E')
-    Param.Li.sigma = (0.791*nm_per_Ang)*(2^(5/6)); % nm
-    Param.Li.epsilon = (0.3367344)*kJ_per_kcal; % kJ/mol
-
-    Param.Na.sigma = (1.212*nm_per_Ang)*(2^(5/6)); % nm
-    Param.Na.epsilon = (0.3526418)*kJ_per_kcal; % kJ/mol
-
-    Param.K.sigma = (1.593*nm_per_Ang)*(2^(5/6)); % nm
-    Param.K.epsilon = (0.4297054)*kJ_per_kcal; % kJ/mol
-
-    Param.Rb.sigma = (1.737*nm_per_Ang)*(2^(5/6)); % nm
-    Param.Rb.epsilon = (0.4451036)*kJ_per_kcal; % kJ/mol
-
-    Param.Cs.sigma = (2.021*nm_per_Ang)*(2^(5/6)); % nm
-    Param.Cs.epsilon = (0.0898565)*kJ_per_kcal; % kJ/mol
-
-    Param.F.sigma = (2.257*nm_per_Ang)*(2^(5/6)); % nm
-    Param.F.epsilon = (0.0074005)*kJ_per_kcal; % kJ/mol
-
-    Param.Cl.sigma = (2.711*nm_per_Ang)*(2^(5/6)); % nm
-    Param.Cl.epsilon = (0.0127850)*kJ_per_kcal; % kJ/mol
-
-    Param.Br.sigma = (2.751*nm_per_Ang)*(2^(5/6)); % nm
-    Param.Br.epsilon = (0.0269586)*kJ_per_kcal; % kJ/mol
-
-    Param.I.sigma = (2.919*nm_per_Ang)*(2^(5/6)); % nm
-    Param.I.epsilon = (0.0427845)*kJ_per_kcal; % kJ/mol
-
-elseif strcmp(Watermodel,'TIP3P')
-    %% JC Ion Parameters in TIP3P water
-    Param.Li.sigma = (1.025*nm_per_Ang)*(2^(5/6)); % nm
-    Param.Li.epsilon = (0.0279896)*kJ_per_kcal; % kJ/mol
-
-    Param.Na.sigma = (1.369*nm_per_Ang)*(2^(5/6)); % nm
-    Param.Na.epsilon = (0.0874393)*kJ_per_kcal; % kJ/mol
-
-    Param.K.sigma = (1.705*nm_per_Ang)*(2^(5/6)); % nm
-    Param.K.epsilon = (0.1936829)*kJ_per_kcal; % kJ/mol
-
-    Param.Rb.sigma = (1.813*nm_per_Ang)*(2^(5/6)); % nm
-    Param.Rb.epsilon = (0.3278219)*kJ_per_kcal; % kJ/mol
-
-    Param.Cs.sigma = (1.976*nm_per_Ang)*(2^(5/6)); % nm
-    Param.Cs.epsilon = (0.4065394)*kJ_per_kcal; % kJ/mol
-
-    Param.F.sigma = (2.303*nm_per_Ang)*(2^(5/6)); % nm
-    Param.F.epsilon = (0.0033640)*kJ_per_kcal; % kJ/mol
-
-    Param.Cl.sigma = (2.513*nm_per_Ang)*(2^(5/6)); % nm
-    Param.Cl.epsilon = (0.0355910)*kJ_per_kcal; % kJ/mol
-
-    Param.Br.sigma = (2.608*nm_per_Ang)*(2^(5/6)); % nm
-    Param.Br.epsilon = (0.0586554)*kJ_per_kcal; % kJ/mol
-
-    Param.I.sigma = (2.860*nm_per_Ang)*(2^(5/6)); % nm
-    Param.I.epsilon = (0.0536816)*kJ_per_kcal; % kJ/mol
-
-elseif strcmp(Watermodel,'TIP4PEW')
-    %% JC Ion Parameters in TIP4P water
-    Param.Li.sigma = (0.808*nm_per_Ang)*(2^(5/6)); % nm
-    Param.Li.epsilon = (0.1039884)*kJ_per_kcal; % kJ/mol
-
-    Param.Na.sigma = (1.226*nm_per_Ang)*(2^(5/6)); % nm
-    Param.Na.epsilon = (0.1684375)*kJ_per_kcal; % kJ/mol
-
-    Param.K.sigma = (1.590*nm_per_Ang)*(2^(5/6)); % nm
-    Param.K.epsilon = (0.2794651)*kJ_per_kcal; % kJ/mol
-
-    Param.Rb.sigma = (1.709*nm_per_Ang)*(2^(5/6)); % nm
-    Param.Rb.epsilon = (0.4331494)*kJ_per_kcal; % kJ/mol
-
-    Param.Cs.sigma = (1.888*nm_per_Ang)*(2^(5/6)); % nm
-    Param.Cs.epsilon = (0.3944318)*kJ_per_kcal; % kJ/mol
-
-    Param.F.sigma = (2.538*nm_per_Ang)*(2^(5/6)); % nm
-    Param.F.epsilon = (0.0015752)*kJ_per_kcal; % kJ/mol
-
-    Param.Cl.sigma = (2.760*nm_per_Ang)*(2^(5/6)); % nm
-    Param.Cl.epsilon = (0.0116615)*kJ_per_kcal; % kJ/mol
-
-    Param.Br.sigma = (2.768*nm_per_Ang)*(2^(5/6)); % nm
-    Param.Br.epsilon = (0.0303773)*kJ_per_kcal; % kJ/mol
-
-    Param.I.sigma = (2.952*nm_per_Ang)*(2^(5/6)); % nm
-    Param.I.epsilon = (0.0417082)*kJ_per_kcal; % kJ/mol
-else
-    error(['Unknown Water Model: "' Watermodel ...
-        '". Please choose one of "SPC/E", "TIP3P", or "TIP4PEW".'])
-end
 
 %% Parameter: q (charge)
 q.Li =  1; % atomic
@@ -133,24 +30,24 @@ q.Br = -1; % atomic
 q.I  = -1; % atomic
 
 
-%% Calculate parameters of interest for LJ potential
-sigma_PP = Param.(Metal).sigma;
-sigma_MM = Param.(Halide).sigma;
-sigma_PM = ( sigma_PP + sigma_MM )/2;
+%% Parameters from input for LJ potential
+sigma_PP = Parameters(1,1);
+sigma_MM = Parameters(1,2);
+sigma_PM = Parameters(1,3);
 
-epsilon_PP = Param.(Metal).epsilon;
-epsilon_MM = Param.(Halide).epsilon;
-epsilon_PM = sqrt(epsilon_PP*epsilon_MM);
+epsilon_PP = Parameters(2,1);
+epsilon_MM = Parameters(2,2);
+epsilon_PM = Parameters(2,3);
 
 % Change parameters into A/r12 - B/r6 format
-A_PP = ES*4*epsilon_PP*(sigma_PP^12);
-B_PP = DS*ES*4*epsilon_PP*(sigma_PP^6);
+A_PP = 4*epsilon_PP*(sigma_PP^12);
+B_PP = 4*epsilon_PP*(sigma_PP^6);
 
-A_MM = ES*4*epsilon_MM*(sigma_MM^12);
-B_MM = DS*ES*4*epsilon_MM*(sigma_MM^6);
+A_MM = 4*epsilon_MM*(sigma_MM^12);
+B_MM = 4*epsilon_MM*(sigma_MM^6);
 
-A_PM = ES*4*epsilon_PM*(sigma_PM^12);
-B_PM = DS*ES*4*epsilon_PM*(sigma_PM^6);
+A_PM = 4*epsilon_PM*(sigma_PM^12);
+B_PM = 4*epsilon_PM*(sigma_PM^6);
 
 %% Generate range (r) in nm
 r = Startpoint:Spacing:Endpoint;

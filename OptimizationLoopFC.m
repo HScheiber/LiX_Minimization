@@ -1,14 +1,10 @@
-function N_Supercell = OptimizationLoopFC(gmx,Cry,Salt,Structure,Model_Scaled,Label,N_Supercell,Maindir,...
+function N_Supercell = OptimizationLoopFC(gmx,Cry,Salt,Structure,Model,Label,N_Supercell,Maindir,...
     MDP,Longest_Cutoff,Coordinate_text,Settings,Topology_text,TableFile,...
-    EnergySetting,Fname,pin)
-
-    Disp_Scale = textscan(Model_Scaled,'%s D%f','Delimiter','_');
-    Disp_Scale = Disp_Scale{2};
-    if isempty(Disp_Scale)
-        Disp_Scale = 1;
-    end
-
-    eneconv_cmd = '';
+    EnergySetting,Fname,pin,Hash)
+    
+    % Name for all temp files of this type
+    FileBase = [Salt '_' Label '_' Model '_' Hash '_' Fname];
+    
     % Assign lattice parameter (a)
     % Find shortest lattice parameter
     aLatpar = Crystal_Info(Cry,Structure,'a'); %#ok<*PFBNS>
@@ -18,7 +14,7 @@ function N_Supercell = OptimizationLoopFC(gmx,Cry,Salt,Structure,Model_Scaled,La
 
     % Update Directory
     Current_Directory = fullfile(Maindir,Salt,...
-        Structure,Model_Scaled,Fname);
+        Structure,[Model '_' Hash],Fname);
 
     % Create directory if it does not exist
     if ~exist(Current_Directory,'dir')
@@ -27,7 +23,7 @@ function N_Supercell = OptimizationLoopFC(gmx,Cry,Salt,Structure,Model_Scaled,La
 
     % Save topology file into directory
     Topology_File = fullfile(Current_Directory,...
-        [Salt '_' Label '_' Model_Scaled '_' Fname '.top']);
+        [FileBase '.top']);
 
     % Copy over MDP file
     MDP.text = MDP.Temp_Model;
@@ -68,7 +64,7 @@ function N_Supercell = OptimizationLoopFC(gmx,Cry,Salt,Structure,Model_Scaled,La
 
     % Save MDP file in current directory
     MDP.File = fullfile(Current_Directory,...
-        [Salt '_' Label '_' Model_Scaled '_' Fname '.mdp']);
+        [FileBase '.mdp']);
     fidMDP = fopen(MDP.File,'wt');
     fwrite(fidMDP,MDP.text);
     fclose(fidMDP);
@@ -78,12 +74,10 @@ function N_Supercell = OptimizationLoopFC(gmx,Cry,Salt,Structure,Model_Scaled,La
         Crystal_Info(Cry,Structure,''),1,false,Settings.CoordType);
 
     % Unit Cell Filename
-    UnitCellFile = fullfile(Current_Directory,[Salt '_' Label '_' ...
-        Model_Scaled '_' Fname '_UnitCell.' Settings.CoordType]);
+    UnitCellFile = fullfile(Current_Directory,[FileBase '_UnitCell.' Settings.CoordType]);
 
     % Supercell Filename
-    SuperCellFile = fullfile(Current_Directory,[Salt '_' Label '_' ...
-        Model_Scaled '_' Fname '.' Settings.CoordType]);
+    SuperCellFile = fullfile(Current_Directory,[FileBase '.' Settings.CoordType]);
 
     % Save unit cell .gro file into current directory
     fid = fopen(UnitCellFile,'wt');
@@ -104,8 +98,7 @@ function N_Supercell = OptimizationLoopFC(gmx,Cry,Salt,Structure,Model_Scaled,La
     end
 
     % Save number of atoms into .mat file
-    NumberFile = fullfile(Current_Directory,[Salt '_' Label '_' ...
-        Model_Scaled '_' Fname '.mat']);
+    NumberFile = fullfile(Current_Directory,[FileBase '.mat']);
     parallelsave(NumberFile,{'N_total' 'N_Cell'},N_total,N_Cell)
 
     % Generate topology file
@@ -117,15 +110,15 @@ function N_Supercell = OptimizationLoopFC(gmx,Cry,Salt,Structure,Model_Scaled,La
 
     % Create name for mdpout file
     MDPout_File = fullfile(Current_Directory,...
-        [Salt '_' Label '_' Model_Scaled '_' Fname '_out.mdp']);
+        [FileBase '_out.mdp']);
     
     % Grompp log file
     GrompLog_File = fullfile(Current_Directory,...
-        [Salt '_' Label '_' Model_Scaled '_' Fname '_Grompplog.log']);
+        [FileBase '_Grompplog.log']);
 
     % Prepare trajectory file
     Trajectory_File = fullfile(Current_Directory,...
-        [Salt '_' Label '_' Model_Scaled '_' Fname '.tpr']);
+        [FileBase '.tpr']);
     
     if ispc
         passlog = ' ^&^> ';
@@ -153,8 +146,6 @@ function N_Supercell = OptimizationLoopFC(gmx,Cry,Salt,Structure,Model_Scaled,La
     end
 
     % Prepare mdrun command
-    FileBase = [Salt '_' Label '_' Model_Scaled '_' Fname];
-
     Log_File = fullfile(Current_Directory,[FileBase '.log']);
 
     Energy_file = fullfile(Current_Directory,[FileBase '.edr']);
@@ -167,7 +158,7 @@ function N_Supercell = OptimizationLoopFC(gmx,Cry,Salt,Structure,Model_Scaled,La
         ' -o ' windows2unix(TRR_File) ' -g ' windows2unix(Log_File) ...
         ' -e ' windows2unix(Energy_file) ' -c ' windows2unix(ConfOut_File) pin];
 
-    if contains(Model_Scaled,'TF') || (contains(Model_Scaled,'JC') && Disp_Scale <= 1e-4) % TF potential requires table
+    if ~isempty(TableFile)
         mdrun_command = [mdrun_command ' -table ' windows2unix(TableFile)];
     end
     

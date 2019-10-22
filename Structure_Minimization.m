@@ -1,12 +1,41 @@
-% Structure_Minimization
-function Structure_Minimization(Salts,Structures,Models,Scale_Dispersion,Scale_Epsilon,Glost_On,OptPos)
+%% INFO ABOUT INPUTS
+% Models is a string variable. One of 'JC' or 'TF'. Sets the mathematical form of the model to use.
+% Salts is either a string or cell array. Can be any of: 'LiF' 'LiCl' 'LiBr' 'LiI' 'NaCl'
+% Structures is either a string or cell array. Can be any of: 'Rocksalt' 'Wurtzite' 'Sphalerite' 'CsCl' 'NiAs' 'BetaBeO' 'FiveFive'
+% OptPos is a Boolean. If true, then the optimization algorithm optimizes
+% for lattice parameters AND fractional coordinates. If false, the
+% algorithm only optimizes for lattice parameters.
+%% Parameters is and N x M matrix of floats, N and M depend on the chosen model. 
+% For JC model: Parameters are contained in either a [2 x 2] OR [2 x 3] array.
+% For TF model: Parameters are contained in a [4 x 3] array.
+%
+% Below are descriptions of the Parameter matrix options. M refers to the
+% Metal ion (i.e. Li or Na) and X refers to the Halide ion (i.e. F, Cl, Br,
+% or I)
+%
+% JC 2 x 2 matrix:   ?_M    ?_X                (units: nm)
+%                    ?_M    ?_X                (units: kJ/mol)
+%
+% When using a 2 x 2 array with the JC model, 
+% the Lorenz-Berthelot mixing rules are assumed.
+% 
+%
+% JC 2 x 3 array:   ?_MM    ?_XX    ?_MX       (units: nm)
+%                   ?_MM    ?_XX    ?_MX       (units: kJ/mol)
+%
+% When using a 2 x 3 array with the JC model, mixing rules are not used.
+%
+%
+% TF 4 x 3 array:   ?_MM    ?_XX    ?_MX       (units: nm^-1)
+%                   B_MM    B_XX    B_MX       (units: kJ/mol)
+%                   C_MM    C_XX    C_MX       (units: (kJ nm^6)/mol)
+%                   D_MM    D_XX    D_MX       (units: (kJ nm^8)/mol)
+%
+% No combining rules are defined for the TF model.
+function Output_Array = Structure_Minimization(Salt,Structure,Model,Parameters,OptPos)
 %% Structure Settings
-%Models = {'JC'}; % Input model(s) to use: JC (JC with SPC/E), JC3P (JC with TIP3P), JC4P (JC with TIP4P_EW), TF
-%Salts = {'LiF'}; %{'LiCl' 'LiBr' 'LiI' 'NaCl'}; % Input alkali halide salt: eg LiF, LiCl, NaCl
-%Structures = {'Rocksalt' 'Wurtzite' 'Sphalerite' 'CsCl' 'NiAs' 'BetaBeO' 'FiveFive'}; % Available: Rocksalt, Wurtzite, Sphalerite, CsCl, NiAs, BetaBeO, FiveFive, or All
-%Scale_Dispersion = 1.0; % Scale the dispersion of potentials (works for TF and JC)
-%Scale_Epsilon = 1.0; % Scale the value of epsilon by this factor (JC potential ONLY)
-Data_Types = 1; % Allowed data types for automatic search of initial conditions (0 = normal, 1 = cell optimized, 2 = full optimized, 3 = atom optimized only)
+Parallel_Mode = false; % If set to true, this will pin the GROMACS process to a single thread
+Data_Types = 1; % Allowed data types for automatic search of initial conditions (0 = not optimized, 1 = cell optimized, 2 = full optimized, 3 = atom optimized only)
 Continue_if_no_IC = true; % When true, uses input initial conditions if none are found in data. When false, does not attempt calculation if no IC are in data.
 Find_Min_Params = true; % When true, finds lowest energy parameters for IC based on Data_Types. When false, uses input IC
 Find_Similar_Params = false; % When true, finds lowest energy parameters for IC if possible, but if no data is available, also looks for the same IC with non-scaled model
@@ -184,7 +213,52 @@ Settings.Delete_Backups = true; % Automatically delete the gromacs backup files 
 Settings.CoordType = 'g96'; % Either pdb, gro, or g96 (extra precision)
 Settings.Tab_StepSize = 0.0005; % Step size of tabulated potentials in nm
 
-%% Begin Code
+%% Error checks
+% Parameter matrix input check
+[N_Par,M_Par] = size(Parameters);
+
+% Model types
+if ~ischar(Model)
+    error('Input variable ''Model'' must be a character array')
+end
+
+if strcmp(Model,'JC')
+    if N_Par ~= 2 || (M_Par ~= 2 && M_Par ~= 3)
+        error(['JC model parameter matrix must be 2 x 2 or 2 x 3. ' ...
+            'Current input matrix is ' num2str(N_Par) ' x ' num2str(M_Par)]);
+    end
+elseif strcmp(Model,'TF')
+    
+    if N_Par ~= 4 || M_Par ~= 3
+        error(['TF model parameter matrix must be 4 x 3. ' ...
+            'Current input matrix is ' num2str(N_Par) ' x ' num2str(M_Par)]);
+    end
+else
+    error(['Unknown Input Model: ' Model])
+end
+
+% Structure
+if ~ischar(Structure)
+    error('Input variable ''Structure'' must be a character array')
+end
+
+% Salt/ion types
+if ~ischar(Salt)
+    error('Input variable ''Salt'' must be a character array')
+end
+
+%% Generate SHA-1 hash of parameter matrix for uniqueness
+% Convert Parameters into a byte array called B...
+B = typecast(Parameters(:),'uint8');
+
+% Create an instance of a Java MessageDigest with the desired algorithm:
+md = java.security.MessageDigest.getInstance('SHA-1');
+md.update(B);
+
+% Properly format the computed hash as an hexadecimal string:
+Hash = reshape(dec2hex(typecast(md.digest(),'uint8'))',1,[]);
+
+%% Check current computer for matlab-gromacs interface
 Longest_Cutoff = max([MDP.RList_Cutoff MDP.RCoulomb_Cutoff MDP.RVDW_Cutoff]);
 Maindir = Settings.Submission_dir;
 home = pwd; 
@@ -196,8 +270,8 @@ elseif isunix
     Server = strtrim(Servertxt);
     if strcmp(Server,'ced') || strcmp(Server,'cdr') 
         gmx = 'gmx_d';
-        if Glost_On
-            setenv('OMP_NUM_THREADS','1');
+        if Parallel_Mode
+            setenv('OMP_NUM_THREADS','1'); %#ok<*UNRCH>
             setenv('GMX_PME_NUM_THREADS','1');
             setenv('GMX_PME_NTHREADS','1');
             setenv('GMX_OPENMP_MAX_THREADS','1');
@@ -208,7 +282,7 @@ elseif isunix
         end
     elseif strcmp(Server,'pat')
         gmx = 'gmx_d';
-        if Glost_On
+        if Parallel_Mode
             setenv('OMP_NUM_THREADS','1');
             setenv('GMX_PME_NUM_THREADS','1');
             setenv('GMX_PME_NTHREADS','1');
@@ -222,28 +296,6 @@ elseif isunix
 else
     error('Unknown machine.')
 end
-
-% Crystal types
-if strcmp('All',Structures)
-    Structures = {'Rocksalt' 'Wurtzite' 'Sphalerite' 'CsCl' 'NiAs' ...
-        'BetaBeO' 'FiveFive'};
-else
-    if ~iscell(Structures)
-        Structures = {Structures};
-    end
-end
-
-% Salt/ion types
-if ~iscell(Salts)
-    Salts = {Salts};
-end
-
-% Determine number of Salts, Structures, Models, and dispersion scaling
-N_Salt = length(Salts);
-N_Struc = length(Structures);
-N_Model = length(Models);
-N_Dispersion = length(Scale_Dispersion);
-N_Epsilon = length(Scale_Epsilon);
 
 % Load topology template location
 Topology_Template = fullfile(home,'templates','Gromacs_Templates',...
@@ -276,730 +328,678 @@ else
     OptTxt = 'CELLOPT';
 end
 
-%% Loop through Salt/ion types
-for i = 1:N_Salt
-    Salt = Salts{i};
-    
-    % Get Metal and Halide info from Current Salt
-    [Metal,Halide] = Separate_Metal_Halide(Salt);
-    Metal_Info = elements('Sym',Metal);
-    Halide_Info = elements('Sym',Halide);
-    
-    % Update Directory
-    Current_Directory = fullfile(Maindir,Salt);
-    
-    % Create directory if it does not exist
-    if ~exist(Current_Directory,'dir')
-        mkdir(Current_Directory)
+% Get Metal and Halide info from Current Salt
+[Metal,Halide] = Separate_Metal_Halide(Salt);
+Metal_Info = elements('Sym',Metal);
+Halide_Info = elements('Sym',Halide);
+
+% Update Directory
+Current_Directory = fullfile(Maindir,Salt);
+
+% Create directory if it does not exist
+if ~exist(Current_Directory,'dir')
+    mkdir(Current_Directory)
+end
+
+% Copy Topology Template
+Topology_Temp_Ions = Topology_Template;
+
+% Insert element info into topology template
+Topology_Temp_Ions = strrep(Topology_Temp_Ions,'##MET##',pad(Metal,2));
+Topology_Temp_Ions = strrep(Topology_Temp_Ions,'##METZ##',pad(num2str(Metal_Info.atomic_number),3));
+Topology_Temp_Ions = strrep(Topology_Temp_Ions,'##METMASS##',pad(num2str(Metal_Info.atomic_mass),7));
+
+Topology_Temp_Ions = strrep(Topology_Temp_Ions,'##HAL##',pad(Halide,2));
+Topology_Temp_Ions = strrep(Topology_Temp_Ions,'##HALZ##',pad(num2str(Halide_Info.atomic_number),3));
+Topology_Temp_Ions = strrep(Topology_Temp_Ions,'##HALMASS##',pad(num2str(Halide_Info.atomic_mass),7));
+
+% Copy MDP Template
+MDP.Temp_Ions = MDP.Template;
+
+% Insert salt components into MDP template
+MDP.Temp_Ions = strrep(MDP.Temp_Ions,'##MET##',Metal);
+MDP.Temp_Ions = strrep(MDP.Temp_Ions,'##HAL##',Halide);
+
+% Copy Topology template
+Topology_Temp_Struct = Topology_Temp_Ions;
+
+% Get current structure
+Label = Cry.(Structure).Label;
+
+% Select symmetry settings
+if Maintain_Symmetry
+    switch Structure
+        case 'BetaBeO'
+            OptB = false; % Optimize with respect to lattice parameter b as well.
+            OptC = true; % Optimize with respect to lattice parameter c as well.
+        case 'CsCl'
+            OptB = false; % Optimize with respect to lattice parameter b as well.
+            OptC = false; % Optimize with respect to lattice parameter c as well.
+        case 'FiveFive'
+            OptB = true; % Optimize with respect to lattice parameter b as well.
+            OptC = true; % Optimize with respect to lattice parameter c as well.
+        case 'Sphalerite'
+            OptB = false; % Optimize with respect to lattice parameter b as well.
+            OptC = false; % Optimize with respect to lattice parameter c as well.
+        case 'NiAs'
+            OptB = false; % Optimize with respect to lattice parameter b as well.
+            OptC = true; % Optimize with respect to lattice parameter c as well.
+        case 'Rocksalt'
+            OptB = false; % Optimize with respect to lattice parameter b as well.
+            OptC = false; % Optimize with respect to lattice parameter c as well.
+        case 'Wurtzite'
+            OptB = false; % Optimize with respect to lattice parameter b as well.
+            OptC = true; % Optimize with respect to lattice parameter c as well.
     end
-    
-    % Copy Topology Template
-    Topology_Temp_Ions = Topology_Template;
+else
+    OptB = true;
+    OptC = true;
+end
 
-    % Insert element info into topology template
-    Topology_Temp_Ions = strrep(Topology_Temp_Ions,'##MET##',pad(Metal,2));
-    Topology_Temp_Ions = strrep(Topology_Temp_Ions,'##METZ##',pad(num2str(Metal_Info.atomic_number),3));
-    Topology_Temp_Ions = strrep(Topology_Temp_Ions,'##METMASS##',pad(num2str(Metal_Info.atomic_mass),7));
-    
-    Topology_Temp_Ions = strrep(Topology_Temp_Ions,'##HAL##',pad(Halide,2));
-    Topology_Temp_Ions = strrep(Topology_Temp_Ions,'##HALZ##',pad(num2str(Halide_Info.atomic_number),3));
-    Topology_Temp_Ions = strrep(Topology_Temp_Ions,'##HALMASS##',pad(num2str(Halide_Info.atomic_mass),7));
-    
-    % Copy MDP Template
-    MDP.Temp_Ions = MDP.Template;
-    
-    % Insert salt components into MDP template
-    MDP.Temp_Ions = strrep(MDP.Temp_Ions,'##MET##',Metal);
-    MDP.Temp_Ions = strrep(MDP.Temp_Ions,'##HAL##',Halide);
-    
-    %% Loop through structure types
-    for j = 1:N_Struc
-               
-        % Copy Topology template
-        Topology_Temp_Struct = Topology_Temp_Ions;
-        
-        % Get current structure
-        Structure = Structures{j};
-        Label = Cry.(Structure).Label;
-        
-        
-        % Select symmetry settings
-        if Maintain_Symmetry
-            switch Structure
-                case 'BetaBeO'
-                    OptB = false; % Optimize with respect to lattice parameter b as well.
-                    OptC = true; % Optimize with respect to lattice parameter c as well.
-                case 'CsCl'
-                    OptB = false; % Optimize with respect to lattice parameter b as well.
-                    OptC = false; % Optimize with respect to lattice parameter c as well.
-                case 'FiveFive'
-                    OptB = true; % Optimize with respect to lattice parameter b as well.
-                    OptC = true; % Optimize with respect to lattice parameter c as well.
-                case 'Sphalerite'
-                    OptB = false; % Optimize with respect to lattice parameter b as well.
-                    OptC = false; % Optimize with respect to lattice parameter c as well.
-                case 'NiAs'
-                    OptB = false; % Optimize with respect to lattice parameter b as well.
-                    OptC = true; % Optimize with respect to lattice parameter c as well.
-                case 'Rocksalt'
-                    OptB = false; % Optimize with respect to lattice parameter b as well.
-                    OptC = false; % Optimize with respect to lattice parameter c as well.
-                case 'Wurtzite'
-                    OptB = false; % Optimize with respect to lattice parameter b as well.
-                    OptC = true; % Optimize with respect to lattice parameter c as well.
-            end
-        else
-            OptB = true; %#ok<UNRCH>
-            OptC = true;
+% Update Directory
+Current_Directory = fullfile(Maindir,Salt,Structure);
+
+% Create directory if it does not exist
+if ~exist(Current_Directory,'dir')
+    mkdir(Current_Directory)
+end
+
+% Structure Template filename
+Coordinate_File = fullfile(home,'templates',...
+    [upper(Settings.CoordType) '_Templates'],...
+    [Structure '.' Settings.CoordType]);
+
+% Load Template text
+Coordinate_text = fileread(Coordinate_File);
+
+% Add Metal and Halide symbols
+if strcmp(Settings.CoordType,'gro')
+    Met = pad(Metal,2,'left');
+    Hal = pad(Halide,2,'left');
+elseif strcmp(Settings.CoordType,'g96')
+    Met = pad(Metal,2,'right');
+    Hal = pad(Halide,2,'right');
+end
+Coordinate_text = strrep(Coordinate_text,'##MET##',Met);
+Coordinate_text = strrep(Coordinate_text,'##HAL##',Hal);
+
+% Calculate size of supercell
+N_Supercell = ceil((N_atoms/Cry.(Structure).N)^(1/3));
+
+% Calculate number of atoms of Metal and Halide in expanded box
+NAtoms = (N_Supercell^3)*Cry.(Structure).N;
+
+% Add number of unit cells to topology file
+Topology_Temp_Struct = strrep(Topology_Temp_Struct,'##N##',num2str(N_Supercell));
+
+% Update Directory
+Current_Directory = fullfile(Maindir,Salt,...
+    Structure,[Model '_' Hash]);
+
+% Create directory if it does not exist
+if ~exist(Current_Directory,'dir')
+    mkdir(Current_Directory)
+end
+
+% Load topology template and MDP template
+Topology_text = Topology_Temp_Struct;
+MDP.Temp_Model = MDP.Temp_Ions;
+
+% Update Topology and MDP files
+MDP.Temp_Model = strrep(MDP.Temp_Model,'##COULOMB##',pad('PME',18));
+MDP.Temp_Model = strrep(MDP.Temp_Model,'##FOURIER##',pad(num2str(MDP.Fourier_Spacing),18));
+MDP.Temp_Model = strrep(MDP.Temp_Model,'##PMEORDER##',pad(num2str(MDP.PME_Order),18));
+MDP.Temp_Model = strrep(MDP.Temp_Model,'##EWALDTOL##',pad(num2str(MDP.Ewald_rtol),18));
+
+% TF model defined as a table in GROMACS
+if strcmp(Model,'TF')
+
+    beta = beta_TF;
+
+    % Define the function type as 1 (needed for custom functions)
+    Topology_text = strrep(Topology_text,'##NBFUNC##','1');
+
+    % Define the combination rules (Lorenz-berthelot)
+    Topology_text = strrep(Topology_text,'##COMBR##','1');
+
+    % Define all the parameters as 1.0 (already included in potentials)
+    Topology_text = strrep(Topology_text,'##METMETC##',pad('1.0',10));
+    Topology_text = strrep(Topology_text,'##HALHALC##',pad('1.0',10));
+    Topology_text = strrep(Topology_text,'##METHALC##',pad('1.0',10));
+    Topology_text = strrep(Topology_text,'##METMETA##','1.0');
+    Topology_text = strrep(Topology_text,'##HALHALA##','1.0');
+    Topology_text = strrep(Topology_text,'##METHALA##','1.0');
+
+    % Generate tables of the TF potential
+    [TF_U_PM, TF_U_PP, TF_U_MM] = TF_Potential_Generator(0,...
+        Settings.Table_Length,Settings.Tab_StepSize,Salt,Parameters,false);
+
+    TableName = [Salt '_' Model '_' Hash '_Table'];
+    TableFile = fullfile(Current_Directory,[TableName '.xvg']);
+
+    % Save tables into current directory
+    fidPM = fopen(fullfile(Current_Directory,[TableName '.xvg']),'wt');
+    fwrite(fidPM,regexprep(TF_U_PM,{'\r', '\n\n+'}',{'', '\n'}));
+    fclose(fidPM);
+
+    fidPP = fopen(fullfile(Current_Directory,...
+        [TableName '_' Metal '_' Metal '.xvg']),'wt');
+    fwrite(fidPP,regexprep(TF_U_PP,{'\r', '\n\n+'}',{'', '\n'}));
+    fclose(fidPP);
+
+    fidMM = fopen(fullfile(Current_Directory,...
+        [TableName '_' Halide '_' Halide '.xvg']),'wt');
+    fwrite(fidMM,regexprep(TF_U_MM,{'\r', '\n\n+'}',{'', '\n'}));
+    fclose(fidMM);
+
+    % Modify the MDP file
+    MDP.Temp_Model = strrep(MDP.Temp_Model,'##VDWTYPE##',pad('user',18));
+    MDP.Temp_Model = strrep(MDP.Temp_Model,'##CUTOFF##',pad('group',18));
+    MDP.Temp_Model = regexprep(MDP.Temp_Model,'ewald-rtol-lj.+?\n','');
+    MDP.Temp_Model = regexprep(MDP.Temp_Model,'lj-pme-comb-rule.+?\n','');
+    MDP.Temp_Model = regexprep(MDP.Temp_Model,'verlet-buffer-tolerance.+?\n','');
+
+    % Energy conversion setting
+    EnergySetting = '1 2 3 4 28 29 30 31 32 33 0';
+
+    % JC model defined as parameters in GROMACS (faster)
+elseif strcmp(Model,'JC') && (~any(Parameters <= 0,'all') || M_Par == 2) 
+
+    beta = beta_JC;
+
+    TableFile = '';
+
+    % Definte the function type as 1 (LJ)
+    Topology_text = strrep(Topology_text,'##NBFUNC##','1');
+
+    % Define the combination rules (Lorenz-berthelot in sigma-epsilon form)
+    Topology_text = strrep(Topology_text,'##COMBR##','2');
+
+    % Get JC parameters
+    Met_JC_Param.sigma = Parameters(1,1);
+    Hal_JC_Param.sigma = Parameters(1,2);
+    Met_JC_Param.epsilon = Parameters(2,1);
+    Hal_JC_Param.epsilon = Parameters(2,2);
+
+    % Cross terms using Lorenz-Berthelot combining rules
+    Sigma_ij = (1/2)*(Met_JC_Param.sigma + Hal_JC_Param.sigma);
+    epsilon_ij = sqrt(Met_JC_Param.epsilon*Hal_JC_Param.epsilon);
+
+    % Add parameters to topology text
+    Topology_text = strrep(Topology_text,'##METMETC##',pad(num2str(Met_JC_Param.sigma,'%10.8f'),10));
+    Topology_text = strrep(Topology_text,'##HALHALC##',pad(num2str(Hal_JC_Param.sigma,'%10.8f'),10));
+    Topology_text = strrep(Topology_text,'##METHALC##',pad(num2str(Sigma_ij,'%10.8f'),10));
+    Topology_text = strrep(Topology_text,'##METMETA##',num2str(Met_JC_Param.epsilon,'%10.8f'));
+    Topology_text = strrep(Topology_text,'##HALHALA##',num2str(Hal_JC_Param.epsilon,'%10.8f'));
+    Topology_text = strrep(Topology_text,'##METHALA##',num2str(epsilon_ij,'%10.8f'));
+
+    % Modify the MDP file
+    MDP.Temp_Model = strrep(MDP.Temp_Model,'##VDWTYPE##',pad(MDP.VDWType,18));
+    MDP.Temp_Model = strrep(MDP.Temp_Model,'##CUTOFF##',pad(MDP.CutOffScheme,18));
+    MDP.Temp_Model = regexprep(MDP.Temp_Model,'energygrp-table.+?\n','');
+    MDP.Temp_Model = regexprep(MDP.Temp_Model,'ewald-rtol-lj.+?\n','');
+    MDP.Temp_Model = regexprep(MDP.Temp_Model,'lj-pme-comb-rule.+?\n','');
+
+    % Add in Verlet Settings
+    if strcmp(MDP.CutOffScheme,'Verlet')
+        MDP.Temp_Model = strrep(MDP.Temp_Model,'##VerletBT##',pad(num2str(MDP.VerletBT),18));
+    else
+        MDP.Temp_Model = regexprep(MDP.Temp_Model,'verlet-buffer-tolerance.+?\n','');
+    end
+
+    % Energy conversion setting
+    EnergySetting = '1 2 3 4 28 29 30 31 32 33 0';
+
+    % JC model defined as table in GROMACS (slower)
+elseif strcmp(Model,'JC') && (any(Parameters <= 0,'all') || M_Par == 3)
+
+    beta = beta_JC;
+
+    % Define the function type as 1 (needed for custom functions)
+    Topology_text = strrep(Topology_text,'##NBFUNC##','1');
+
+    % Define the combination rules (not used for tables input)
+    Topology_text = strrep(Topology_text,'##COMBR##','1');
+
+    % Define all the parameters as 1.0 (already included in potentials)
+    Topology_text = strrep(Topology_text,'##METMETC##',pad('1.0',10));
+    Topology_text = strrep(Topology_text,'##HALHALC##',pad('1.0',10));
+    Topology_text = strrep(Topology_text,'##METHALC##',pad('1.0',10));
+    Topology_text = strrep(Topology_text,'##METMETA##','1.0');
+    Topology_text = strrep(Topology_text,'##HALHALA##','1.0');
+    Topology_text = strrep(Topology_text,'##METHALA##','1.0');
+
+    % Generate tables of the JC potential
+    [JC_U_PM, JC_U_PP, JC_U_MM] = JC_Potential_Generator(0,...
+        Settings.Table_Length,Settings.Tab_StepSize,Salt,Parameters,false);            
+
+    TableName = [Salt '_' Model '_' Hash '_Table'];
+    TableFile = fullfile(Current_Directory,[TableName '.xvg']);
+
+    % Save tables into current directory
+    fidPM = fopen(fullfile(Current_Directory,[TableName '.xvg']),'wt');
+    fwrite(fidPM,regexprep(JC_U_PM,{'\r', '\n\n+'}',{'', '\n'}));
+    fclose(fidPM);
+
+    fidPP = fopen(fullfile(Current_Directory,...
+        [TableName '_' Metal '_' Metal '.xvg']),'wt');
+    fwrite(fidPP,regexprep(JC_U_PP,{'\r', '\n\n+'}',{'', '\n'}));
+    fclose(fidPP);
+
+    fidMM = fopen(fullfile(Current_Directory,...
+        [TableName '_' Halide '_' Halide '.xvg']),'wt');
+    fwrite(fidMM,regexprep(JC_U_MM,{'\r', '\n\n+'}',{'', '\n'}));
+    fclose(fidMM);
+
+    % Modify the MDP file
+    MDP.Temp_Model = strrep(MDP.Temp_Model,'##VDWTYPE##',pad('user',18));
+    MDP.Temp_Model = strrep(MDP.Temp_Model,'##CUTOFF##',pad('group',18));
+    MDP.Temp_Model = regexprep(MDP.Temp_Model,'ewald-rtol-lj.+?\n','');
+    MDP.Temp_Model = regexprep(MDP.Temp_Model,'lj-pme-comb-rule.+?\n','');
+    MDP.Temp_Model = regexprep(MDP.Temp_Model,'verlet-buffer-tolerance.+?\n','');
+
+    % Energy conversion setting
+    EnergySetting = '1 2 3 4 28 29 30 31 32 33 0';
+end
+
+% Save topology file into current directory
+Topology_File = fullfile(Current_Directory,...
+    [Salt '_' Label '_' Model '.top']);
+
+TotalTimer = tic;
+disp(['Beginning ' Salt ' ' Structure ' ' Model ' (ID = ' Hash ') Optimization...'])
+topol_created = false; % Keep track of whether or not topology file has been generated
+
+% Update directory details
+FileBase = [Salt '_' Label '_' Model '_' Hash '_' OptTxt];
+
+if ispc
+    OptDir = [Current_Directory filesep OptTxt];
+    OptDirUnix = windows2unix([Current_Directory filesep OptTxt]);
+    rm_command = ['wsl find ' OptDirUnix ' -iname "#*#" ^| xargs rm -f'];
+    del_command = ['wsl rm -r ' OptDirUnix '/*'];
+else
+    OptDir = [Current_Directory filesep OptTxt];
+    rm_command = ['find ' OptDir ' -iname "#*#" | xargs rm -f'];
+    del_command = ['rm -r ' OptDir '/*'];
+end
+
+% Find minimum lattice parameter for this
+% salt/structure/model (or use initial ones)
+if Find_Min_Params
+    [Cry.(Structure).a,Cry.(Structure).b,...
+        Cry.(Structure).c,...
+        Cry.(Structure).FC_Metal,...
+        Cry.(Structure).FC_Halide,Updated] = ...
+        FindMinLatticeParam(Cry,Salt,...
+        Structure,Model,home,Data_Types,...
+        Find_Similar_Params);
+
+    if ~Continue_if_no_IC && ~Updated
+        disp(['No Suitable Initial Conditions Found. For '  Salt ' ' Structure ' ' Model ' Optimization.'])
+        disp('Calculation Halted.')
+        disp('Energy convergence reached after 0 cycles.')
+        system(del_command);
+         % Delete tables
+        if strcmp(Model,'TF') || (strcmp(Model,'JC') && Dispersion_Scale <= 0)
+            delete(fullfile(Current_Directory,[TableName '.xvg']));
+            delete(fullfile(Current_Directory,...
+                [TableName '_' Metal '_' Metal '.xvg']));
+            delete(fullfile(Current_Directory,...
+                [TableName '_' Halide '_' Halide '.xvg']));
         end
-        
-        % Update Directory
-        Current_Directory = fullfile(Maindir,Salt,Structure);
-        
-        % Create directory if it does not exist
-        if ~exist(Current_Directory,'dir')
-            mkdir(Current_Directory)
-        end
-        
-        % Structure Template filename
-        Coordinate_File = fullfile(home,'templates',...
-            [upper(Settings.CoordType) '_Templates'],...
-            [Structure '.' Settings.CoordType]);
-        
-        % Load Template text
-        Coordinate_text = fileread(Coordinate_File);
-        
-        % Add Metal and Halide symbols
-        if strcmp(Settings.CoordType,'gro')
-            Met = pad(Metal,2,'left');
-            Hal = pad(Halide,2,'left');
-        elseif strcmp(Settings.CoordType,'g96')
-            Met = pad(Metal,2,'right');
-            Hal = pad(Halide,2,'right');
-        end
-        Coordinate_text = strrep(Coordinate_text,'##MET##',Met);
-        Coordinate_text = strrep(Coordinate_text,'##HAL##',Hal);
-        
-        % Calculate size of supercell
-        N_Supercell = ceil((N_atoms/Cry.(Structure).N)^(1/3));
-        
-        % Calculate number of atoms of Metal and Halide in expanded box
-        NAtoms = (N_Supercell^3)*Cry.(Structure).N;
-        
-        % Add number of unit cells to topology file
-        Topology_Temp_Struct = strrep(Topology_Temp_Struct,'##N##',num2str(N_Supercell));
-        
-        %% Loop through models
-        for k = 1:N_Model
-            Model = Models{k};
-            
-            %% Loop through dispersion scaling
-            for l = 1:N_Dispersion
-                
-                Dispersion_Scale = Scale_Dispersion(l);
-                
-                if ismembertol(1.0,Dispersion_Scale,1e-5)
-                    Model_Scaled = Model;
-                else
-                    Model_Scaled = [Model '_D' sprintf('%7.5f',Dispersion_Scale)];
-                end
-                
-                %% Loop through epsilon scaling
-                for m = 1:N_Epsilon
-                    
-                    Epsilon_Scale = Scale_Epsilon(m);
-
-                    if ismembertol(1.0,Epsilon_Scale,1e-5)
-                        Model_Scaled2 = Model_Scaled;
-                    else
-                        Model_Scaled2 = [Model_Scaled '_E' sprintf('%7.5f',Epsilon_Scale)];
-                    end
-
-                    % Update Directory
-                    Current_Directory = fullfile(Maindir,Salt,...
-                        Structure,Model_Scaled2);
-
-                    % Create directory if it does not exist
-                    if ~exist(Current_Directory,'dir')
-                        mkdir(Current_Directory)
-                    end
-
-                    % Load topology template and MDP template
-                    Topology_text = Topology_Temp_Struct;
-                    MDP.Temp_Model = MDP.Temp_Ions;
-
-                    % Update Topology and MDP files
-                    MDP.Temp_Model = strrep(MDP.Temp_Model,'##COULOMB##',pad('PME',18));
-                    MDP.Temp_Model = strrep(MDP.Temp_Model,'##FOURIER##',pad(num2str(MDP.Fourier_Spacing),18));
-                    MDP.Temp_Model = strrep(MDP.Temp_Model,'##PMEORDER##',pad(num2str(MDP.PME_Order),18));
-                    MDP.Temp_Model = strrep(MDP.Temp_Model,'##EWALDTOL##',pad(num2str(MDP.Ewald_rtol),18));
-
-                    if strcmp(Model,'TF')
-                        if ~ismembertol(1.0,Epsilon_Scale,1e-5)
-                            error('Epsilon scaling is not implimented for the TF model.')
-                        end
-                        
-                        beta = beta_TF;
-
-                        % Define the function type as 1 (needed for custom functions)
-                        Topology_text = strrep(Topology_text,'##NBFUNC##','1');
-
-                        % Define the combination rules (Lorenz-berthelot)
-                        Topology_text = strrep(Topology_text,'##COMBR##','1');
-
-                        % Define all the parameters as 1.0 (already included in potentials)
-                        Topology_text = strrep(Topology_text,'##METMETC##',pad('1.0',10));
-                        Topology_text = strrep(Topology_text,'##HALHALC##',pad('1.0',10));
-                        Topology_text = strrep(Topology_text,'##METHALC##',pad('1.0',10));
-                        Topology_text = strrep(Topology_text,'##METMETA##','1.0');
-                        Topology_text = strrep(Topology_text,'##HALHALA##','1.0');
-                        Topology_text = strrep(Topology_text,'##METHALA##','1.0');
-
-                        % Generate tables of the TF potential
-                        [TF_U_PM, TF_U_PP, TF_U_MM] = TF_Potential_Generator(0,...
-                            Settings.Table_Length,Settings.Tab_StepSize,Salt,false,Dispersion_Scale);
-
-                        TableName = [Salt '_' Model_Scaled2 '_Table'];
-                        TableFile = fullfile(Current_Directory,[TableName '.xvg']);
-
-                        % Save tables into current directory
-                        fidPM = fopen(fullfile(Current_Directory,[TableName '.xvg']),'wt');
-                        fwrite(fidPM,regexprep(TF_U_PM,{'\r', '\n\n+'}',{'', '\n'}));
-                        fclose(fidPM);
-
-                        fidPP = fopen(fullfile(Current_Directory,...
-                            [TableName '_' Metal '_' Metal '.xvg']),'wt');
-                        fwrite(fidPP,regexprep(TF_U_PP,{'\r', '\n\n+'}',{'', '\n'}));
-                        fclose(fidPP);
-
-                        fidMM = fopen(fullfile(Current_Directory,...
-                            [TableName '_' Halide '_' Halide '.xvg']),'wt');
-                        fwrite(fidMM,regexprep(TF_U_MM,{'\r', '\n\n+'}',{'', '\n'}));
-                        fclose(fidMM);
-
-                        % Modify the MDP file
-                        MDP.Temp_Model = strrep(MDP.Temp_Model,'##VDWTYPE##',pad('user',18));
-                        MDP.Temp_Model = strrep(MDP.Temp_Model,'##CUTOFF##',pad('group',18));
-                        MDP.Temp_Model = regexprep(MDP.Temp_Model,'ewald-rtol-lj.+?\n','');
-                        MDP.Temp_Model = regexprep(MDP.Temp_Model,'lj-pme-comb-rule.+?\n','');
-                        MDP.Temp_Model = regexprep(MDP.Temp_Model,'verlet-buffer-tolerance.+?\n','');
-
-                        % Energy conversion setting
-                        EnergySetting = '1 2 3 4 28 29 30 31 32 33 0';
-
-                    elseif contains(Model,'JC') && Dispersion_Scale > 0
-                        switch Model
-                            case 'JC'
-                                WaterModel = 'SPC/E';
-                            case 'JC3P'
-                                WaterModel = 'TIP3P';
-                            case 'JC4P'
-                                WaterModel = 'TIP4PEW';
-                        end
-                        
-                        beta = beta_JC;
-                        
-                        TableFile = '';
-
-                        % Definte the function type as 1 (LJ)
-                        Topology_text = strrep(Topology_text,'##NBFUNC##','1');
-
-                        % Define the combination rules (Lorenz-berthelot in sigma-epsilon form)
-                        Topology_text = strrep(Topology_text,'##COMBR##','2');
-
-                        % Get JC parameters
-                        [Met_JC_Param,Hal_JC_Param] = JC_Potential_Parameters(Metal,...
-                            Halide,WaterModel,false,Dispersion_Scale,Epsilon_Scale);
-
-                        % Cross terms
-                        Sigma_ij = (1/2)*(Met_JC_Param.sigma + Hal_JC_Param.sigma);
-                        epsilon_ij = sqrt(Met_JC_Param.epsilon*Hal_JC_Param.epsilon);
-
-                        % Add parameters to topology text
-                        Topology_text = strrep(Topology_text,'##METMETC##',pad(num2str(Met_JC_Param.sigma,'%10.8f'),10));
-                        Topology_text = strrep(Topology_text,'##HALHALC##',pad(num2str(Hal_JC_Param.sigma,'%10.8f'),10));
-                        Topology_text = strrep(Topology_text,'##METHALC##',pad(num2str(Sigma_ij,'%10.8f'),10));
-                        Topology_text = strrep(Topology_text,'##METMETA##',num2str(Met_JC_Param.epsilon,'%10.8f'));
-                        Topology_text = strrep(Topology_text,'##HALHALA##',num2str(Hal_JC_Param.epsilon,'%10.8f'));
-                        Topology_text = strrep(Topology_text,'##METHALA##',num2str(epsilon_ij,'%10.8f'));
-
-                        % Modify the MDP file
-                        MDP.Temp_Model = strrep(MDP.Temp_Model,'##VDWTYPE##',pad(MDP.VDWType,18));
-                        MDP.Temp_Model = strrep(MDP.Temp_Model,'##CUTOFF##',pad(MDP.CutOffScheme,18));
-                        MDP.Temp_Model = regexprep(MDP.Temp_Model,'energygrp-table.+?\n','');
-                        MDP.Temp_Model = regexprep(MDP.Temp_Model,'ewald-rtol-lj.+?\n','');
-                        MDP.Temp_Model = regexprep(MDP.Temp_Model,'lj-pme-comb-rule.+?\n','');
-
-                        % Add in Verlet Settings
-                        if strcmp(MDP.CutOffScheme,'Verlet')
-                            MDP.Temp_Model = strrep(MDP.Temp_Model,'##VerletBT##',pad(num2str(MDP.VerletBT),18));
-                        else
-                            MDP.Temp_Model = regexprep(MDP.Temp_Model,'verlet-buffer-tolerance.+?\n','');
-                        end
-
-                        % Energy conversion setting
-                        EnergySetting = '1 2 3 4 28 29 30 31 32 33 0';
-
-                    elseif contains(Model,'JC') && Dispersion_Scale <= 0
-                        switch Model
-                            case 'JC'
-                                WaterModel = 'SPC/E';
-                            case 'JC3P'
-                                WaterModel = 'TIP3P';
-                            case 'JC4P'
-                                WaterModel = 'TIP4PEW';
-                        end
-                        
-                        beta = beta_JC;
-
-                        % Define the function type as 1 (needed for custom functions)
-                        Topology_text = strrep(Topology_text,'##NBFUNC##','1');
-
-                        % Define the combination rules (Lorenz-berthelot)
-                        Topology_text = strrep(Topology_text,'##COMBR##','1');
-
-                        % Define all the parameters as 1.0 (already included in potentials)
-                        Topology_text = strrep(Topology_text,'##METMETC##',pad('1.0',10));
-                        Topology_text = strrep(Topology_text,'##HALHALC##',pad('1.0',10));
-                        Topology_text = strrep(Topology_text,'##METHALC##',pad('1.0',10));
-                        Topology_text = strrep(Topology_text,'##METMETA##','1.0');
-                        Topology_text = strrep(Topology_text,'##HALHALA##','1.0');
-                        Topology_text = strrep(Topology_text,'##METHALA##','1.0');
-
-                        % Generate tables of the TF potential
-                        [JC_U_PM, JC_U_PP, JC_U_MM] = JC_Potential_Generator(0,...
-                            Settings.Table_Length,Settings.Tab_StepSize,Salt,...
-                            WaterModel,false,Dispersion_Scale,Epsilon_Scale);
-
-                        TableName = [Salt '_' Model_Scaled2 '_Table'];
-                        TableFile = fullfile(Current_Directory,[TableName '.xvg']);
-
-                        % Save tables into current directory
-                        fidPM = fopen(fullfile(Current_Directory,[TableName '.xvg']),'wt');
-                        fwrite(fidPM,regexprep(JC_U_PM,{'\r', '\n\n+'}',{'', '\n'}));
-                        fclose(fidPM);
-
-                        fidPP = fopen(fullfile(Current_Directory,...
-                            [TableName '_' Metal '_' Metal '.xvg']),'wt');
-                        fwrite(fidPP,regexprep(JC_U_PP,{'\r', '\n\n+'}',{'', '\n'}));
-                        fclose(fidPP);
-
-                        fidMM = fopen(fullfile(Current_Directory,...
-                            [TableName '_' Halide '_' Halide '.xvg']),'wt');
-                        fwrite(fidMM,regexprep(JC_U_MM,{'\r', '\n\n+'}',{'', '\n'}));
-                        fclose(fidMM);
-
-                        % Modify the MDP file
-                        MDP.Temp_Model = strrep(MDP.Temp_Model,'##VDWTYPE##',pad('user',18));
-                        MDP.Temp_Model = strrep(MDP.Temp_Model,'##CUTOFF##',pad('group',18));
-                        MDP.Temp_Model = regexprep(MDP.Temp_Model,'ewald-rtol-lj.+?\n','');
-                        MDP.Temp_Model = regexprep(MDP.Temp_Model,'lj-pme-comb-rule.+?\n','');
-                        MDP.Temp_Model = regexprep(MDP.Temp_Model,'verlet-buffer-tolerance.+?\n','');
-
-                        % Energy conversion setting
-                        EnergySetting = '1 2 3 4 28 29 30 31 32 33 0';
-                    else
-                        disp(['Warning: Unknown model type: "' Model '", skipping model...'])
-                        rmdir(Current_Directory)
-                        continue
-                    end
-
-                    % Save topology file into current directory
-                    Topology_File = fullfile(Current_Directory,...
-                        [Salt '_' Label '_' Model '.top']);
-
-                    TotalTimer = tic;
-                    disp(['Beginning ' Salt ' ' Structure ' ' Model_Scaled2 ' Optimization...'])
-                    topol_created = false; % Keep track of whether or not topology file has been generated
-                    
-                    % Update directory details
-                    FileBase = [Salt '_' Label '_' Model_Scaled2 '_' OptTxt];
-                    
-                    if ispc
-                        OptDir = [Current_Directory filesep OptTxt];
-                        OptDirUnix = windows2unix([Current_Directory filesep OptTxt]);
-                        rm_command = ['wsl find ' OptDirUnix ' -iname "#*#" ^| xargs rm -f'];
-                        del_command = ['wsl rm -r ' OptDirUnix '/*'];
-                    else
-                        OptDir = [Current_Directory filesep OptTxt];
-                        rm_command = ['find ' OptDir ' -iname "#*#" | xargs rm -f'];
-                        del_command = ['rm -r ' OptDir '/*'];
-                    end
-                    
-                    % Find minimum lattice parameter for this
-                    % salt/structure/model (or use initial ones)
-                    if Find_Min_Params
-                        [Cry.(Structure).a,Cry.(Structure).b,...
-                            Cry.(Structure).c,...
-                            Cry.(Structure).FC_Metal,...
-                            Cry.(Structure).FC_Halide,Updated] = ...
-                            FindMinLatticeParam(Cry,Salt,...
-                            Structure,Model_Scaled2,home,Data_Types,...
-                            Find_Similar_Params);
-                        
-                        if ~Continue_if_no_IC && ~Updated
-                            disp(['No Suitable Initial Conditions Found. For '  Salt ' ' Structure ' ' Model_Scaled2 ' Optimization.'])
-                            disp('Calculation Halted.')
-                            disp('Energy convergence reached after 0 cycles.')
-                            system(del_command);
-                             % Delete tables
-                            if strcmp(Model,'TF') || (strcmp(Model,'JC') && Dispersion_Scale <= 0)
-                                delete(fullfile(Current_Directory,[TableName '.xvg']));
-                                delete(fullfile(Current_Directory,...
-                                    [TableName '_' Metal '_' Metal '.xvg']));
-                                delete(fullfile(Current_Directory,...
-                                    [TableName '_' Halide '_' Halide '.xvg']));
-                            end
-                            return
-                        end
-                    end
-                    
-                    %% Begin Optimization Loop
-                    % Loop broken when convergence criteria is met or max cycles reached
-                    skip_results = false;
-                    auto_h = true;
-                    [~,~] = system(rm_command);
-                    for Index = 1:MaxCycles
-                        Restart_cycle = false;
-                        % Calculate reasonable step size
-                        if auto_h
-                            h = nuderst([Cry.(Structure).a Cry.(Structure).b Cry.(Structure).c]);
-                        else
-                            auto_h = true;
-                        end
-                        
-                        OptimizationLoop(gmx,Cry,Salt,Structure,Model_Scaled2,Label,N_Supercell,...
-                            Maindir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
-                            Topology_text,TableFile,EnergySetting,OptTxt,pin);
-
-                        disp(['********************Cycle ' num2str(Index) ' Initial Conditions********************']);
-                        disp(['Lattice Parameter a = ' num2str(Cry.(Structure).a,'%2.8f') ' ' char(0197) '.']);
-                        disp(['Lattice Parameter b = ' num2str(Cry.(Structure).b,'%2.8f') ' ' char(0197) '.']);
-                        disp(['Lattice Parameter c = ' num2str(Cry.(Structure).c,'%2.8f') ' ' char(0197) '.']);
-                        disp(['Asym. Unit. Fractional Coordinates for ' Metal ': ' num2str(Cry.(Structure).FC_Metal(1,:),'%2.8f ')]);
-                        disp(['Asym. Unit. Fractional Coordinates for ' Halide ': ' num2str(Cry.(Structure).FC_Halide(1,:),'%2.8f ')]);
-                        E = GrabEnergy(OptDir,FileBase);
-                        disp(['Initial E = ' num2str(E,'%4.10f') ' kJ/mol']);
-                        disp(['Numerical Derivative Step Sizes: h(a) = ' num2str(h(1)) ' ' char(0197) '; h(b) = ' num2str(h(2)) ' ' char(0197) '; h(c) = ' num2str(h(3)) ' ' char(0197) '.'])
-                        disp(['Step size coefficient: ' num2str(Gamma) ])
-                        Telap = datestr(seconds(toc(TotalTimer)),'HH:MM:SS');
-                        disp(['Time Elapsed: ' Telap])
-                        disp('******************************************************************')
-                            
-                        % Get energy at a minus 1 step
-                        CryMinus_a = Cry;
-                        CryMinus_a.(Structure).a = Cry.(Structure).a - h(1);
-                        if Maintain_Symmetry
-                            [CryMinus_a.(Structure).b,CryMinus_a.(Structure).c] = SymmetryAdapt(CryMinus_a.(Structure).a,...
-                                CryMinus_a.(Structure).b,CryMinus_a.(Structure).c,Structure);
-                        end
-                        OptimizationLoop(gmx,CryMinus_a,Salt,Structure,Model_Scaled2,Label,N_Supercell,...
-                            Maindir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
-                            Topology_text,TableFile,EnergySetting,OptTxt,pin);
-                        E_Minus_a = GrabEnergy(OptDir,FileBase);
-                        
-                        Telap = datestr(seconds(toc(TotalTimer)),'HH:MM:SS');
-                        disp(['Finite step a = -' num2str(h(1),'%2.8f') ' ' char(0197) ' Calculated. Time Elapsed: ' Telap]);
-                        disp([char(916) 'E (a-1) = ' num2str(E_Minus_a-E,'%4.10f') ' kJ/mol.']);
-
-                        % Get energy at a plus 1 step
-                        CryPlus_a = Cry;
-                        CryPlus_a.(Structure).a = Cry.(Structure).a + h(1);
-                        if Maintain_Symmetry
-                            [CryPlus_a.(Structure).b,CryPlus_a.(Structure).c] = SymmetryAdapt(CryPlus_a.(Structure).a,...
-                                CryPlus_a.(Structure).b,CryPlus_a.(Structure).c,Structure);
-                        end
-                        OptimizationLoop(gmx,CryPlus_a,Salt,Structure,Model_Scaled2,Label,N_Supercell,...
-                            Maindir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
-                            Topology_text,TableFile,EnergySetting,OptTxt,pin);
-                        E_Plus_a = GrabEnergy(OptDir,FileBase);
-                        
-                        Telap = datestr(seconds(toc(TotalTimer)),'HH:MM:SS');
-                        disp(['Finite step a = +' num2str(h(1),'%2.8f') ' ' char(0197) ' Calculated. Time Elapsed: ' Telap]);
-                        disp([char(916) 'E (a+1) = ' num2str(E_Plus_a-E,'%4.10f') ' kJ/mol']);
-                        
-                        % Derivative wrt a (and constraints)
-                        dE_da = (1/(2*h(1)))*(-E_Minus_a + E_Plus_a);
-                        
-                        % Get OptB steps
-                        if OptB
-                            % Get energy at a minus 1 step
-                            CryMinus_b = Cry;
-                            CryMinus_b.(Structure).b = Cry.(Structure).b - h(2);
-                            
-                            OptimizationLoop(gmx,CryMinus_b,Salt,Structure,Model_Scaled2,Label,N_Supercell,...
-                                Maindir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
-                                Topology_text,TableFile,EnergySetting,OptTxt,pin);
-                            E_Minus_b = GrabEnergy(OptDir,FileBase);
-                            
-                            Telap = datestr(seconds(toc(TotalTimer)),'HH:MM:SS');
-                            disp(['Finite step b = -' num2str(h(2),'%2.8f') ' ' char(0197) ' Calculated. Time Elapsed: ' Telap]);
-                            disp([char(916) 'E (b-1) = ' num2str(E_Minus_b-E,'%4.10f') ' kJ/mol']);
-                            
-                            % Get energy at b plus 1 step
-                            CryPlus_b = Cry;
-                            CryPlus_b.(Structure).b = Cry.(Structure).b + h(2);
-                            
-                            OptimizationLoop(gmx,CryPlus_b,Salt,Structure,Model_Scaled2,Label,N_Supercell,...
-                                Maindir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
-                                Topology_text,TableFile,EnergySetting,OptTxt,pin);
-                            E_Plus_b = GrabEnergy(OptDir,FileBase);
-                            
-                            Telap = datestr(seconds(toc(TotalTimer)),'HH:MM:SS');
-                            disp(['Finite step b = +' num2str(h(2),'%2.8f') ' ' char(0197) ' Calculated. Time Elapsed: ' Telap]);
-                            disp([char(916) 'E (b+1) = ' num2str(E_Plus_b-E,'%4.10f') ' kJ/mol']);
-                            
-                            % Derivative wrt b (and constraints)
-                            dE_db = (1/(2*h(2)))*(-E_Minus_b + E_Plus_b);
-                        end
-
-                        % Get OptC steps
-                        if OptC
-                            % Get energy at a minus 1 step
-                            CryMinus_c = Cry;
-                            CryMinus_c.(Structure).c = Cry.(Structure).c - h(3);
-                            
-                            OptimizationLoop(gmx,CryMinus_c,Salt,Structure,Model_Scaled2,Label,N_Supercell,...
-                                Maindir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
-                                Topology_text,TableFile,EnergySetting,OptTxt,pin)
-                            E_Minus_c = GrabEnergy(OptDir,FileBase);
-                            
-                            Telap = datestr(seconds(toc(TotalTimer)),'HH:MM:SS');
-                            disp(['Finite step c = -' num2str(h(3),'%2.8f') ' ' char(0197) ' Calculated. Time Elapsed: ' Telap]);
-                            disp([char(916) 'E (c-1) = ' num2str(E_Minus_c-E,'%4.10f') ' kJ/mol']);
-
-                            % Get energy at b plus 1 step
-                            CryPlus_c = Cry;
-                            CryPlus_c.(Structure).c = Cry.(Structure).c + h(3);
-                            
-                            OptimizationLoop(gmx,CryPlus_c,Salt,Structure,Model_Scaled2,Label,N_Supercell,...
-                                Maindir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
-                                Topology_text,TableFile,EnergySetting,OptTxt,pin)
-                            E_Plus_c = GrabEnergy(OptDir,FileBase);
-                            
-                            Telap = datestr(seconds(toc(TotalTimer)),'HH:MM:SS');
-                            disp(['Finite step c = +' num2str(h(3),'%2.8f') ' ' char(0197) ' Calculated. Time Elapsed: ' Telap]);
-                            disp([char(916) 'E (c+1) = ' num2str(E_Plus_c-E,'%4.10f') ' kJ/mol']);
-                            
-                            % Derivative wrt c (and constraints)
-                            dE_dc = (1/(2*h(3)))*(-E_Minus_c + E_Plus_c);
-                        end
-                        
-                        % Calculate gradient
-                        Gradient = dE_da;
-                        if OptB
-                            Gradient(end+1) = dE_db;
-                        end
-                        if OptC
-                            Gradient(end+1) = dE_dc;
-                        end
-                            
-                        % Move one step in direction of steepest descent
-                        for StepInd = 1:11
-
-                            CryNew = Cry;
-
-                            CryNew.(Structure).a = Cry.(Structure).a - sign(dE_da)*min(abs(Gamma*dE_da),Max_Step_size);
-                            if Maintain_Symmetry
-                                [CryNew.(Structure).b,CryNew.(Structure).c] = SymmetryAdapt(CryNew.(Structure).a,...
-                                    CryNew.(Structure).b,CryNew.(Structure).c,Structure);
-                            end
-                            if OptB
-                                CryNew.(Structure).b = Cry.(Structure).b - sign(dE_db)*min(abs(Gamma*dE_db),Max_Step_size);
-                            end
-                            if OptC
-                                CryNew.(Structure).c = Cry.(Structure).c - sign(dE_dc)*min(abs(Gamma*dE_dc),Max_Step_size);
-                            end
-
-                            % Recalculate energy at new point
-                            OptimizationLoop(gmx,CryNew,Salt,Structure,Model_Scaled2,Label,N_Supercell,...
-                                Maindir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
-                                Topology_text,TableFile,EnergySetting,OptTxt,pin);
-                            E_New = GrabEnergy(OptDir,FileBase);
-            
-                            if E_New > E - alpha*Gamma*norm(Gradient)^2
-                                Gamma = beta*Gamma;
-
-                                Telap = datestr(seconds(toc(TotalTimer)),'HH:MM:SS');
-                                disp(['Optimizing step size... Time Elapsed: ' Telap])
-                                system(rm_command);
-                            elseif E_New > E
-                                Telap = datestr(seconds(toc(TotalTimer)),'HH:MM:SS');                               
-                                disp(['Finite step in direction of steepest descent calculated. Time Elapsed: ' Telap]);
-                                disp([char(916) 'E = ' num2str(E_New-E,'%4.10f') ' kJ/mol']);
-                                disp(['RMS ' char(8711) 'E = ' num2str(rms(Gradient)) ' kJ/mol A'])
-                                disp(['|Max(' char(8711) 'E)| = ' num2str(max(abs(Gradient))) ' kJ/mol A'])
-                                disp('Step size too large, decreasing...');
-                                Gamma = beta*Gamma;
-                            else
-                                Telap = datestr(seconds(toc(TotalTimer)),'HH:MM:SS');
-                            	disp(['Finite step in direction of steepest descent calculated. Time Elapsed: ' Telap]);
-                                disp([char(916) 'E = ' num2str(E_New-E,'%4.10f') ' kJ/mol']);
-                                disp(['RMS ' char(8711) 'E = ' num2str(rms(Gradient)) ' kJ/mol A'])
-                                disp(['|Max(' char(8711) 'E)| = ' num2str(max(abs(Gradient))) ' kJ/mol A'])
-                                break
-                            end
-                            
-                            if StepInd > 10
-                                h = h./10;
-                                Gamma = (1/beta^10)*Gamma*0.1;
-                                Restart_cycle = true;
-                                system(rm_command);
-                                break
-                            end
-                        end
-                        
-                        if Restart_cycle
-                            disp('Unable to find a point of lower energy in chosen direction, starting next cycle with modified numerical derivative step size.');
-                            auto_h = false;
-                            continue
-                        end
-
-                        % Optimize wrt positions
-                        if OptPos
-                            % Save MDP variable for later
-                            Temp_ModelOld = MDP.Temp_Model;
-
-                            MDP.Temp_Model = strrep(MDP.Temp_Model,'= md                ; What type of calculation is run',...
-                                ['= ' MDP.min_integrator newline 'emtol                    = ' num2str(emtol)]);
-                            MDP.Temp_Model = regexprep(MDP.Temp_Model,'nsteps                   = [0-9|\.|\-]+',...
-                                ['nsteps                   = ' num2str(MDP.nsteps_min)]);
-
-                            % Rerun energy calc and break loop
-                            EnergySettingAlt = '1 2 3 4 25 26 27 28 29 30 0'; 
-
-                            N_Supercell_out = OptimizationLoopFC(gmx,CryNew,Salt,Structure,...
-                                Model_Scaled2,Label,N_Supercell,...
-                                Maindir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
-                                Topology_text,TableFile,EnergySettingAlt,OptTxt,pin);
-
-                            E_New = GrabEnergyFinal(OptDir,FileBase);
-                            disp(['Geometry Optimized W.R.T. Atomic Positions. ' char(916) 'E = ' num2str(E_New-E,'%4.10f') ' kJ/mol']);
-                            Telap = datestr(seconds(toc(TotalTimer)),'HH:MM:SS');
-                            disp(['Time Elapsed: ' Telap])
-                            
-                            % Get new unit cell coordinates
-
-                            % Get output config filename
-                            OutConf_file = fullfile(OptDir,[FileBase 'OutConf.g96']);
-
-                            % Open the unit cell structure file
-                            SuperCellText = fileread(OutConf_file);
-                            SuperCellText = regexprep(SuperCellText, {'\r', '\n\n+'}, {'', '\n'});
-                            Positions = regexp(SuperCellText,'(?<=POSITION\n)(.+?)(?=(\n)END)','match','ONCE');
-
-                            % g96 file format
-                            Coords_Data = textscan(Positions,'%*6c%6c%*6c%*6c%15.9f%15.9f%15.9f\n',...
-                                CryNew.(Structure).N,'Delimiter','','whitespace','');
-
-                            % Get xyz coordinates of the asymmetric unit
-                            idx = (CryNew.(Structure).N)/2 + 1;
-                            Met_XYZ = [Coords_Data{2}(1:idx-1) Coords_Data{3}(1:idx-1) Coords_Data{4}(1:idx-1)];
-                            Hal_XYZ = [Coords_Data{2}(idx:end) Coords_Data{3}(idx:end) Coords_Data{4}(idx:end)];
-
-                            % Get end cell parameter text
-                            boxtemp = regexp(SuperCellText,'(?<=BOX\n)(.+?)(?=(\n)END)','match');
-                            boxcoords = textscan(boxtemp{1},'%f %f %f %f %f %f %f %f %f',...
-                                'Delimiter',' ','MultipleDelimsAsOne',true);
-
-                            % Check for empty coords
-                            indx = cellfun('isempty',boxcoords); % true for empty cells
-                            boxcoords(indx) = {0}; % replace by a cell with a zero
-
-                            % Lattice vectors
-                            a_vec = [boxcoords{1} boxcoords{4} boxcoords{5}]/N_Supercell_out;
-                            b_vec = [boxcoords{6} boxcoords{2} boxcoords{7}]/N_Supercell_out;
-                            c_vec = [boxcoords{8} boxcoords{9} boxcoords{3}]/N_Supercell_out;
-
-                            if (strcmp(Structure,'Wurtzite') || strcmp(Structure,'NiAs')) && VecAngle(a_vec,b_vec) < 90.0
-                                b_vec = [-boxcoords{6} boxcoords{2} boxcoords{7}]/N_Supercell_out;
-                            end
-
-                            % Get transformation Matrix
-                            TM = [a_vec ; b_vec ; c_vec];
-                            CryNew.(Structure).Transform = [a_vec/norm(a_vec) ; b_vec/norm(b_vec) ; c_vec/norm(c_vec)];
-
-                            % Convert to Fractional coordinates
-                            CryNew.(Structure).FC_Metal = mod(Met_XYZ/TM,1);
-                            CryNew.(Structure).FC_Halide = mod(Hal_XYZ/TM,1);
-
-                            % Copy to unit cell
-                            Unit_cell_text = AddCartesianCoord(Coordinate_text,CryNew.(Structure),1,false,'g96');
-
-                            % Overwrite unit cell
-                            UnitCell_file = fullfile(OptDir,[FileBase '_UnitCell.g96']);
-                            fidUC = fopen(UnitCell_file,'wt');
-                            fwrite(fidUC,regexprep(Unit_cell_text,{'\r', '\n\n+'}',{'', '\n'}));
-                            fclose(fidUC);
-
-                            % Reload old MDP variable
-                            MDP.Temp_Model = Temp_ModelOld;
-                        end
-
-                        % Remove backup files
-                        system(rm_command);
-                        
-                        Telap = datestr(seconds(toc(TotalTimer)),'HH:MM:SS');
-                        disp('************************************')
-                        disp(['Cycle ' num2str(Index) ' complete.'])
-                        disp(['Time Elapsed: ' Telap])
-                        disp('************************************')
-                        
-                        % Check if energy converged
-                        if (abs(E_New - E) < Energy_Tol) && ...
-                                (rms(Gradient) < Gradient_Tol_RMS) && ...
-                                (max(abs(Gradient)) < Gradient_Tol_Max)
-                            % If all convergence criteria are met, end loop
-                            Cry = CryNew;
-                            disp(['Energy convergence reached after ' num2str(Index) ' cycles.' newline 'Final recalculation of energy...'])
-                            OptimizationLoop(gmx,Cry,Salt,Structure,Model_Scaled2,Label,N_Supercell,...
-                                Maindir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
-                                Topology_text,TableFile,EnergySetting,OptTxt,pin);
-
-                            E = GrabEnergy(OptDir,FileBase);
-                            system(rm_command);
-                            break
-                        elseif abs(E_New - E) > 4e3 || (E_New < -3e3)
-                            disp('Warning: Unphysical energy change detected.')
-                            disp('Model may have local minimum at complete overlap of opposite charges.')
-                            disp(['Energy convergence reached after ' num2str(Index) ' cycles.'])
-                            disp('No non-trivial solution possible. Removing output files.')
-                            system(del_command);
-                            skip_results = true;
-                            break
-                        elseif E_New < E
-                            Gamma = Gamma*Gamma_Multiplier;
-                            E = E_New;
-                            Cry = CryNew;
-                        elseif E_New > E
-                            disp('Warning: Total energy increased after geometry optimization of positions.')
-                            disp('Possible bug?')
-                        end
-                        
-                        if Index < MaxCycles
-                            disp(['Beginning Cycle ' num2str(Index+1) '.'])
-                        else
-                            disp(['Convergence NOT reached after ' num2str(Index) ' cycles. Stopping.'])
-                        end                        
-                    end
-                    
-                    Telap = datestr(seconds(toc(TotalTimer)),'HH:MM:SS');
-                    disp(['Completed: ' Salt ' ' Structure ' ' Model_Scaled2 ' Geometry Optimization. Time ' Telap])
-                    if ~skip_results
-                        disp(['Final Optimized Energy is ' num2str(E,'%4.10f') ' kJ/mol'])
-                        disp(['Lattice Parameter a = ' num2str(Cry.(Structure).a,'%2.8f') ' ' char(0197) '.']);
-                        disp(['Lattice Parameter b = ' num2str(Cry.(Structure).b,'%2.8f') ' ' char(0197) '.']);
-                        disp(['Lattice Parameter c = ' num2str(Cry.(Structure).c,'%2.8f') ' ' char(0197) '.']);
-                        disp(['Asym. Unit. Fractional Coordinates for ' Metal ': ' num2str(Cry.(Structure).FC_Metal(1,:),'%2.8f ')]);
-                        disp(['Asym. Unit. Fractional Coordinates for ' Halide ': ' num2str(Cry.(Structure).FC_Halide(1,:),'%2.8f ')]);
-                    end
-                end
-            end
-        end
+        return
     end
 end
 
-% Cleanup temp directory
-rmdir(Settings.Submission_dir,'s');
+%% Begin Optimization Loop
+% Loop broken when convergence criteria is met or max cycles reached
+skip_results = false;
+auto_h = true;
+[~,~] = system(rm_command);
+for Index = 1:MaxCycles
+    Restart_cycle = false;
+    % Calculate reasonable step size
+    if auto_h
+        h = nuderst([Cry.(Structure).a Cry.(Structure).b Cry.(Structure).c]);
+    else
+        auto_h = true;
+    end
 
+    OptimizationLoop(gmx,Cry,Salt,Structure,Model,Label,N_Supercell,...
+        Maindir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
+        Topology_text,TableFile,EnergySetting,OptTxt,pin,Hash);
+
+    disp(['********************Cycle ' num2str(Index) ' Initial Conditions********************']);
+    disp(['Lattice Parameter a = ' num2str(Cry.(Structure).a,'%2.8f') ' ' char(0197) '.']);
+    disp(['Lattice Parameter b = ' num2str(Cry.(Structure).b,'%2.8f') ' ' char(0197) '.']);
+    disp(['Lattice Parameter c = ' num2str(Cry.(Structure).c,'%2.8f') ' ' char(0197) '.']);
+    disp(['Asym. Unit. Fractional Coordinates for ' Metal ': ' num2str(Cry.(Structure).FC_Metal(1,:),'%2.8f ')]);
+    disp(['Asym. Unit. Fractional Coordinates for ' Halide ': ' num2str(Cry.(Structure).FC_Halide(1,:),'%2.8f ')]);
+    E = GrabEnergy(OptDir,FileBase);
+    disp(['Initial E = ' num2str(E,'%4.10f') ' kJ/mol']);
+    disp(['Numerical Derivative Step Sizes: h(a) = ' num2str(h(1)) ' ' char(0197) '; h(b) = ' num2str(h(2)) ' ' char(0197) '; h(c) = ' num2str(h(3)) ' ' char(0197) '.'])
+    disp(['Step size coefficient: ' num2str(Gamma) ])
+    Telap = datestr(seconds(toc(TotalTimer)),'HH:MM:SS');
+    disp(['Time Elapsed: ' Telap])
+    disp('******************************************************************')
+
+    % Get energy at a minus 1 step
+    CryMinus_a = Cry;
+    CryMinus_a.(Structure).a = Cry.(Structure).a - h(1);
+    if Maintain_Symmetry
+        [CryMinus_a.(Structure).b,CryMinus_a.(Structure).c] = SymmetryAdapt(CryMinus_a.(Structure).a,...
+            CryMinus_a.(Structure).b,CryMinus_a.(Structure).c,Structure);
+    end
+    OptimizationLoop(gmx,CryMinus_a,Salt,Structure,Model,Label,N_Supercell,...
+        Maindir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
+        Topology_text,TableFile,EnergySetting,OptTxt,pin,Hash);
+    E_Minus_a = GrabEnergy(OptDir,FileBase);
+
+    Telap = datestr(seconds(toc(TotalTimer)),'HH:MM:SS');
+    disp(['Finite step a = -' num2str(h(1),'%2.8f') ' ' char(0197) ' Calculated. Time Elapsed: ' Telap]);
+    disp([char(916) 'E (a-1) = ' num2str(E_Minus_a-E,'%4.10f') ' kJ/mol.']);
+
+    % Get energy at a plus 1 step
+    CryPlus_a = Cry;
+    CryPlus_a.(Structure).a = Cry.(Structure).a + h(1);
+    if Maintain_Symmetry
+        [CryPlus_a.(Structure).b,CryPlus_a.(Structure).c] = SymmetryAdapt(CryPlus_a.(Structure).a,...
+            CryPlus_a.(Structure).b,CryPlus_a.(Structure).c,Structure);
+    end
+    OptimizationLoop(gmx,CryPlus_a,Salt,Structure,Model,Label,N_Supercell,...
+        Maindir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
+        Topology_text,TableFile,EnergySetting,OptTxt,pin,Hash);
+    E_Plus_a = GrabEnergy(OptDir,FileBase);
+
+    Telap = datestr(seconds(toc(TotalTimer)),'HH:MM:SS');
+    disp(['Finite step a = +' num2str(h(1),'%2.8f') ' ' char(0197) ' Calculated. Time Elapsed: ' Telap]);
+    disp([char(916) 'E (a+1) = ' num2str(E_Plus_a-E,'%4.10f') ' kJ/mol']);
+
+    % Derivative wrt a (and constraints)
+    dE_da = (1/(2*h(1)))*(-E_Minus_a + E_Plus_a);
+
+    % Get OptB steps
+    if OptB
+        % Get energy at a minus 1 step
+        CryMinus_b = Cry;
+        CryMinus_b.(Structure).b = Cry.(Structure).b - h(2);
+
+        OptimizationLoop(gmx,CryMinus_b,Salt,Structure,Model,Label,N_Supercell,...
+            Maindir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
+            Topology_text,TableFile,EnergySetting,OptTxt,pin,Hash);
+        E_Minus_b = GrabEnergy(OptDir,FileBase);
+
+        Telap = datestr(seconds(toc(TotalTimer)),'HH:MM:SS');
+        disp(['Finite step b = -' num2str(h(2),'%2.8f') ' ' char(0197) ' Calculated. Time Elapsed: ' Telap]);
+        disp([char(916) 'E (b-1) = ' num2str(E_Minus_b-E,'%4.10f') ' kJ/mol']);
+
+        % Get energy at b plus 1 step
+        CryPlus_b = Cry;
+        CryPlus_b.(Structure).b = Cry.(Structure).b + h(2);
+
+        OptimizationLoop(gmx,CryPlus_b,Salt,Structure,Model,Label,N_Supercell,...
+            Maindir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
+            Topology_text,TableFile,EnergySetting,OptTxt,pin,Hash);
+        E_Plus_b = GrabEnergy(OptDir,FileBase);
+
+        Telap = datestr(seconds(toc(TotalTimer)),'HH:MM:SS');
+        disp(['Finite step b = +' num2str(h(2),'%2.8f') ' ' char(0197) ' Calculated. Time Elapsed: ' Telap]);
+        disp([char(916) 'E (b+1) = ' num2str(E_Plus_b-E,'%4.10f') ' kJ/mol']);
+
+        % Derivative wrt b (and constraints)
+        dE_db = (1/(2*h(2)))*(-E_Minus_b + E_Plus_b);
+    end
+
+    % Get OptC steps
+    if OptC
+        % Get energy at a minus 1 step
+        CryMinus_c = Cry;
+        CryMinus_c.(Structure).c = Cry.(Structure).c - h(3);
+
+        OptimizationLoop(gmx,CryMinus_c,Salt,Structure,Model,Label,N_Supercell,...
+            Maindir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
+            Topology_text,TableFile,EnergySetting,OptTxt,pin,Hash)
+        E_Minus_c = GrabEnergy(OptDir,FileBase);
+
+        Telap = datestr(seconds(toc(TotalTimer)),'HH:MM:SS');
+        disp(['Finite step c = -' num2str(h(3),'%2.8f') ' ' char(0197) ' Calculated. Time Elapsed: ' Telap]);
+        disp([char(916) 'E (c-1) = ' num2str(E_Minus_c-E,'%4.10f') ' kJ/mol']);
+
+        % Get energy at b plus 1 step
+        CryPlus_c = Cry;
+        CryPlus_c.(Structure).c = Cry.(Structure).c + h(3);
+
+        OptimizationLoop(gmx,CryPlus_c,Salt,Structure,Model,Label,N_Supercell,...
+            Maindir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
+            Topology_text,TableFile,EnergySetting,OptTxt,pin,Hash)
+        E_Plus_c = GrabEnergy(OptDir,FileBase);
+
+        Telap = datestr(seconds(toc(TotalTimer)),'HH:MM:SS');
+        disp(['Finite step c = +' num2str(h(3),'%2.8f') ' ' char(0197) ' Calculated. Time Elapsed: ' Telap]);
+        disp([char(916) 'E (c+1) = ' num2str(E_Plus_c-E,'%4.10f') ' kJ/mol']);
+
+        % Derivative wrt c (and constraints)
+        dE_dc = (1/(2*h(3)))*(-E_Minus_c + E_Plus_c);
+    end
+
+    % Calculate gradient
+    Gradient = dE_da;
+    if OptB
+        Gradient(end+1) = dE_db;
+    end
+    if OptC
+        Gradient(end+1) = dE_dc;
+    end
+
+    % Move one step in direction of steepest descent
+    for StepInd = 1:11
+
+        CryNew = Cry;
+
+        CryNew.(Structure).a = Cry.(Structure).a - sign(dE_da)*min(abs(Gamma*dE_da),Max_Step_size);
+        if Maintain_Symmetry
+            [CryNew.(Structure).b,CryNew.(Structure).c] = SymmetryAdapt(CryNew.(Structure).a,...
+                CryNew.(Structure).b,CryNew.(Structure).c,Structure);
+        end
+        if OptB
+            CryNew.(Structure).b = Cry.(Structure).b - sign(dE_db)*min(abs(Gamma*dE_db),Max_Step_size);
+        end
+        if OptC
+            CryNew.(Structure).c = Cry.(Structure).c - sign(dE_dc)*min(abs(Gamma*dE_dc),Max_Step_size);
+        end
+
+        % Recalculate energy at new point
+        OptimizationLoop(gmx,CryNew,Salt,Structure,Model,Label,N_Supercell,...
+            Maindir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
+            Topology_text,TableFile,EnergySetting,OptTxt,pin,Hash);
+        E_New = GrabEnergy(OptDir,FileBase);
+
+        if E_New > E - alpha*Gamma*norm(Gradient)^2
+            Gamma = beta*Gamma;
+
+            Telap = datestr(seconds(toc(TotalTimer)),'HH:MM:SS');
+            disp(['Optimizing step size... Time Elapsed: ' Telap])
+            system(rm_command);
+        elseif E_New > E
+            Telap = datestr(seconds(toc(TotalTimer)),'HH:MM:SS');                               
+            disp(['Finite step in direction of steepest descent calculated. Time Elapsed: ' Telap]);
+            disp([char(916) 'E = ' num2str(E_New-E,'%4.10f') ' kJ/mol']);
+            disp(['RMS ' char(8711) 'E = ' num2str(rms(Gradient)) ' kJ/mol A'])
+            disp(['|Max(' char(8711) 'E)| = ' num2str(max(abs(Gradient))) ' kJ/mol A'])
+            disp('Step size too large, decreasing...');
+            Gamma = beta*Gamma;
+        else
+            Telap = datestr(seconds(toc(TotalTimer)),'HH:MM:SS');
+            disp(['Finite step in direction of steepest descent calculated. Time Elapsed: ' Telap]);
+            disp([char(916) 'E = ' num2str(E_New-E,'%4.10f') ' kJ/mol']);
+            disp(['RMS ' char(8711) 'E = ' num2str(rms(Gradient)) ' kJ/mol A'])
+            disp(['|Max(' char(8711) 'E)| = ' num2str(max(abs(Gradient))) ' kJ/mol A'])
+            break
+        end
+
+        if StepInd > 10
+            h = h./10;
+            Gamma = (1/beta^10)*Gamma*0.1;
+            Restart_cycle = true;
+            system(rm_command);
+            break
+        end
+    end
+
+    if Restart_cycle
+        disp('Unable to find a point of lower energy in chosen direction, starting next cycle with modified numerical derivative step size.');
+        auto_h = false;
+        continue
+    end
+
+    % Optimize wrt positions
+    if OptPos
+        % Save MDP variable for later
+        Temp_ModelOld = MDP.Temp_Model;
+
+        MDP.Temp_Model = strrep(MDP.Temp_Model,'= md                ; What type of calculation is run',...
+            ['= ' MDP.min_integrator newline 'emtol                    = ' num2str(emtol)]);
+        MDP.Temp_Model = regexprep(MDP.Temp_Model,'nsteps                   = [0-9|\.|\-]+',...
+            ['nsteps                   = ' num2str(MDP.nsteps_min)]);
+
+        % Rerun energy calc and break loop
+        EnergySettingAlt = '1 2 3 4 25 26 27 28 29 30 0'; 
+
+        N_Supercell_out = OptimizationLoopFC(gmx,CryNew,Salt,Structure,...
+            Model,Label,N_Supercell,...
+            Maindir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
+            Topology_text,TableFile,EnergySettingAlt,OptTxt,pin,Hash);
+
+        E_New = GrabEnergyFinal(OptDir,FileBase);
+        disp(['Geometry Optimized W.R.T. Atomic Positions. ' char(916) 'E = ' num2str(E_New-E,'%4.10f') ' kJ/mol']);
+        Telap = datestr(seconds(toc(TotalTimer)),'HH:MM:SS');
+        disp(['Time Elapsed: ' Telap])
+
+        % Get new unit cell coordinates
+
+        % Get output config filename
+        OutConf_file = fullfile(OptDir,[FileBase 'OutConf.g96']);
+
+        % Open the unit cell structure file
+        SuperCellText = fileread(OutConf_file);
+        SuperCellText = regexprep(SuperCellText, {'\r', '\n\n+'}, {'', '\n'});
+        Positions = regexp(SuperCellText,'(?<=POSITION\n)(.+?)(?=(\n)END)','match','ONCE');
+
+        % g96 file format
+        Coords_Data = textscan(Positions,'%*6c%6c%*6c%*6c%15.9f%15.9f%15.9f\n',...
+            CryNew.(Structure).N,'Delimiter','','whitespace','');
+
+        % Get xyz coordinates of the asymmetric unit
+        idx = (CryNew.(Structure).N)/2 + 1;
+        Met_XYZ = [Coords_Data{2}(1:idx-1) Coords_Data{3}(1:idx-1) Coords_Data{4}(1:idx-1)];
+        Hal_XYZ = [Coords_Data{2}(idx:end) Coords_Data{3}(idx:end) Coords_Data{4}(idx:end)];
+
+        % Get end cell parameter text
+        boxtemp = regexp(SuperCellText,'(?<=BOX\n)(.+?)(?=(\n)END)','match');
+        boxcoords = textscan(boxtemp{1},'%f %f %f %f %f %f %f %f %f',...
+            'Delimiter',' ','MultipleDelimsAsOne',true);
+
+        % Check for empty coords
+        indx = cellfun('isempty',boxcoords); % true for empty cells
+        boxcoords(indx) = {0}; % replace by a cell with a zero
+
+        % Lattice vectors
+        a_vec = [boxcoords{1} boxcoords{4} boxcoords{5}]/N_Supercell_out;
+        b_vec = [boxcoords{6} boxcoords{2} boxcoords{7}]/N_Supercell_out;
+        c_vec = [boxcoords{8} boxcoords{9} boxcoords{3}]/N_Supercell_out;
+
+        if (strcmp(Structure,'Wurtzite') || strcmp(Structure,'NiAs')) && VecAngle(a_vec,b_vec) < 90.0
+            b_vec = [-boxcoords{6} boxcoords{2} boxcoords{7}]/N_Supercell_out;
+        end
+
+        % Get transformation Matrix
+        TM = [a_vec ; b_vec ; c_vec];
+        CryNew.(Structure).Transform = [a_vec/norm(a_vec) ; b_vec/norm(b_vec) ; c_vec/norm(c_vec)];
+
+        % Convert to Fractional coordinates
+        CryNew.(Structure).FC_Metal = mod(Met_XYZ/TM,1);
+        CryNew.(Structure).FC_Halide = mod(Hal_XYZ/TM,1);
+
+        % Copy to unit cell
+        Unit_cell_text = AddCartesianCoord(Coordinate_text,CryNew.(Structure),1,false,'g96');
+
+        % Overwrite unit cell
+        UnitCell_file = fullfile(OptDir,[FileBase '_UnitCell.g96']);
+        fidUC = fopen(UnitCell_file,'wt');
+        fwrite(fidUC,regexprep(Unit_cell_text,{'\r', '\n\n+'}',{'', '\n'}));
+        fclose(fidUC);
+
+        % Reload old MDP variable
+        MDP.Temp_Model = Temp_ModelOld;
+    end
+
+    % Remove backup files
+    system(rm_command);
+
+    Telap = datestr(seconds(toc(TotalTimer)),'HH:MM:SS');
+    disp('************************************')
+    disp(['Cycle ' num2str(Index) ' complete.'])
+    disp(['Time Elapsed: ' Telap])
+    disp('************************************')
+
+    % Check if energy converged
+    if (abs(E_New - E) < Energy_Tol) && ...
+            (rms(Gradient) < Gradient_Tol_RMS) && ...
+            (max(abs(Gradient)) < Gradient_Tol_Max)
+        % If all convergence criteria are met, end loop
+        Cry = CryNew;
+        disp(['Energy convergence reached after ' num2str(Index) ' cycles.' newline 'Final recalculation of energy...'])
+        OptimizationLoop(gmx,Cry,Salt,Structure,Model,Label,N_Supercell,...
+            Maindir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
+            Topology_text,TableFile,EnergySetting,OptTxt,pin,Hash);
+
+        E = GrabEnergy(OptDir,FileBase);
+        system(rm_command);
+        break
+    elseif abs(E_New - E) > 4e3 || (E_New < -3e3)
+        disp('Warning: Unphysical energy change detected.')
+        disp('Model may have local minimum at complete overlap of opposite charges.')
+        disp(['Energy convergence reached after ' num2str(Index) ' cycles.'])
+        disp('No non-trivial solution possible. Removing output files.')
+        system(del_command);
+        skip_results = true;
+        break
+    elseif E_New < E
+        Gamma = Gamma*Gamma_Multiplier;
+        E = E_New;
+        Cry = CryNew;
+    elseif E_New > E
+        disp('Warning: Total energy increased after geometry optimization of positions.')
+        disp('Possible bug?')
+    end
+
+    if Index < MaxCycles
+        disp(['Beginning Cycle ' num2str(Index+1) '.'])
+    else
+        disp(['Convergence NOT reached after ' num2str(Index) ' cycles. Stopping.'])
+    end                        
+end
+
+Telap = datestr(seconds(toc(TotalTimer)),'HH:MM:SS');
+disp(['Completed: ' Salt ' ' Structure ' ' Model ' (ID = ' Hash ') Geometry Optimization. Time ' Telap])
+if ~skip_results
+    disp(['Final Optimized Energy is ' num2str(E,'%4.10f') ' kJ/mol'])
+    disp(['Lattice Parameter a = ' num2str(Cry.(Structure).a,'%2.8f') ' ' char(0197) '.']);
+    disp(['Lattice Parameter b = ' num2str(Cry.(Structure).b,'%2.8f') ' ' char(0197) '.']);
+    disp(['Lattice Parameter c = ' num2str(Cry.(Structure).c,'%2.8f') ' ' char(0197) '.']);
+    disp(['Asym. Unit. Fractional Coordinates for ' Metal ': ' num2str(Cry.(Structure).FC_Metal(1,:),'%2.8f ')]);
+    disp(['Asym. Unit. Fractional Coordinates for ' Halide ': ' num2str(Cry.(Structure).FC_Halide(1,:),'%2.8f ')]);
+end
+
+%% Package output
+Output_Array = [E Cry.(Structure).a Cry.(Structure).b Cry.(Structure).c ...
+    Cry.(Structure).FC_Metal(1,:)  Cry.(Structure).FC_Halide(1,:)];
+
+% Cleanup temp directory
+try
+    rmdir(Settings.Submission_dir,'s');
+catch
+    warning(['Unable to delete temporary directory: ' Settings.Submission_dir])
+end
 end

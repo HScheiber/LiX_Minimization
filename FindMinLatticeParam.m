@@ -1,9 +1,8 @@
 function [a,b,c,FCmet,FChal,Updated] = FindMinLatticeParam(Cry,Salt,Structure,...
     Model,home,Data_Types,Find_Similar_Params)
 
-% Convert structure name for model
-ModelTag = strrep(strrep(Model,'.','P'),'-','N');
-Datafilename = fullfile(home,'data','GROMACS',...
+% Data files
+Datafilename = fullfile(home,'DATA',...
       [Salt '_' Structure '_Lattice_Energies.mat']);
 
 % Load known empirical energies
@@ -41,23 +40,23 @@ if ~isfield(Data.(Salt),Structure)
     Updated = false;
     return
 end
-if ~isfield(Data.(Salt).(Structure),ModelTag)
+if ~isfield(Data.(Salt).(Structure),Model)
     
     if Find_Similar_Params
         % Find similar model
-        if contains(ModelTag,'JC3P')
-            ModelTag = 'JC3P';
-        elseif contains(ModelTag,'JC4P')
-            ModelTag = 'JC4P';
-        elseif contains(ModelTag,'JC')
-            ModelTag = 'JC';
-        elseif contains(ModelTag,'TF')
-            ModelTag = 'TF';
+        if contains(Model,'JC3P')
+            Model = 'JC3P';
+        elseif contains(Model,'JC4P')
+            Model = 'JC4P';
+        elseif contains(Model,'JC')
+            Model = 'JC';
+        elseif contains(Model,'TF')
+            Model = 'TF';
         end
     end
     
      % If still no model found, use default
-	if ~isfield(Data.(Salt).(Structure),ModelTag)
+	if ~isfield(Data.(Salt).(Structure),Model)
         a = Cry.(Structure).a;
         b = Cry.(Structure).b;
         c = Cry.(Structure).c;
@@ -68,7 +67,7 @@ if ~isfield(Data.(Salt).(Structure),ModelTag)
 	end
 end
 
-EmpiricalData = Data.(Salt).(Structure).(ModelTag);
+EmpiricalData = Data.(Salt).(Structure).(Model);
 a_emp = [EmpiricalData{:,1}];
 b_emp = [EmpiricalData{:,2}];
 c_emp = [EmpiricalData{:,3}];
