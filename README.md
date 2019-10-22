@@ -20,10 +20,10 @@ The main script is called “Structure_Minimization.m”. This takes as input:
 * It would not be too much work for me to remove this constraint, but I very much doubt it would change the results significantly. 
 
 
-Parameters is and N x M matrix of floats, N and M depend on the chosen model. 
+`Parameters` is and `N x M` matrix of floats, `N` and `M` depend on the chosen model. 
 
-For JC model: Parameters are contained in either a [2 x 2] OR [2 x 3] array.
-For TF model: Parameters are contained in a [4 x 3] array.
+For JC model: Parameters are contained in either a `2 x 2` OR `2 x 3` array.
+For TF model: Parameters are contained in a `4 x 3` array.
 
 Below are descriptions of the Parameter matrix options. M refers to the
 Metal ion (i.e. Li or Na) and X refers to the Halide ion (i.e. F, Cl, Br,
