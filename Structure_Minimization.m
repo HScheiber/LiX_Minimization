@@ -947,12 +947,18 @@ for Index = 1:MaxCycles
         system(rm_command);
         break
     elseif abs(E_New - E) > 4e3 || (E_New < -3e3)
-        disp('Warning: Unphysical energy change detected.')
+        disp('Warning: Unphysical energy detected.')
         disp('Model may have local minimum at complete overlap of opposite charges.')
         disp(['Energy convergence reached after ' num2str(Index) ' cycles.'])
-        disp('No non-trivial solution possible. Removing output files.')
+        disp('No non-trivial solution found. Removing output.')
         system(del_command);
         skip_results = true;
+        E = nan;
+        Cry.(Structure).a = nan;
+        Cry.(Structure).b = nan;
+        Cry.(Structure).c = nan;
+        Cry.(Structure).FC_Metal(:) = nan;
+        Cry.(Structure).FC_Halide(:) = nan;
         break
     elseif E_New < E
         Gamma = Gamma*Gamma_Multiplier;
@@ -989,6 +995,6 @@ Output_Array = [E Cry.(Structure).a Cry.(Structure).b Cry.(Structure).c ...
 try
     rmdir(Settings.Submission_dir,'s');
 catch
-    warning(['Unable to delete temporary directory: ' Settings.Submission_dir])
+    disp(['Unable to delete temporary directory: ' Settings.Submission_dir])
 end
 end

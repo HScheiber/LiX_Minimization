@@ -1,6 +1,6 @@
 % MATLAB Parallel wrapper for Structure_Minimization to run minimization 
 % of all structures in parallel
-function Output_Array =  Structure_Minimization_Par(Salt,Model,Parameters,OptPos)
+function Output_Array = Structure_Minimization_Par(Salt,Model,Parameters,OptPos)
     % Pre-construct output array and list of structures to compute
     Structures = {'Rocksalt' 'Wurtzite' 'Sphalerite' 'CsCl' 'NiAs' 'BetaBeO' 'FiveFive'};
     
