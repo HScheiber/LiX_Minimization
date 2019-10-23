@@ -20,18 +20,19 @@
 % the Lorenz-Berthelot mixing rules are assumed.
 % 
 %
-% JC 2 x 3 array:   sigma_MM    sigma_XX    sigma_MX       (units: nm)
+% JC 2 x 3 array:   sigma_MM    sigma_XX    sigma_MX         (units: nm)
 %                   epsilon_MM  epsilon_XX  epsilon_MX       (units: kJ/mol)
 %
-% When using a 2 x 3 array with the JC model, mixing rules are not used.
+% When using a 2 x 3 array with the JC model, mixing rules are defined by the input.
 %
 %
-% TF 4 x 3 array:   alpha_MM    alpha_XX    alpha_MX       (units: nm^-1)
+% TF 4 x 3 array:   alpha_MM    alpha_XX    alpha_MX   (units: nm^-1)
 %                   B_MM        B_XX        B_MX       (units: kJ/mol)
 %                   C_MM        C_XX        C_MX       (units: (kJ nm^6)/mol)
 %                   D_MM        D_XX        D_MX       (units: (kJ nm^8)/mol)
 %
-% No combining rules are defined for the TF model.
+% No combining rules are defined for the TF model. Note that in original TF
+% model, all alpha parameters (which correspond to repulsive wall steepness) are set equal for each salt.
 function Output_Array = Structure_Minimization(Salt,Structure,Model,Parameters,OptPos)
 %% Structure Settings
 Parallel_Mode = true; % If set to true, this will pin the GROMACS process to a single thread
