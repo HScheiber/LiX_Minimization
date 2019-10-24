@@ -951,7 +951,7 @@ for Index = 1:MaxCycles
         disp('Warning: Unphysical energy detected.')
         disp('Model may have local minimum at complete overlap of opposite charges.')
         disp(['Energy convergence reached after ' num2str(Index) ' cycles.'])
-        disp('No non-trivial solution found. Removing output.')
+        disp('No non-trivial solution found.')
         system(del_command);
         skip_results = true;
         break
