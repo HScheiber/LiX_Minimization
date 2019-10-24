@@ -954,12 +954,6 @@ for Index = 1:MaxCycles
         disp('No non-trivial solution found. Removing output.')
         system(del_command);
         skip_results = true;
-        E = nan;
-        Cry.(Structure).a = nan;
-        Cry.(Structure).b = nan;
-        Cry.(Structure).c = nan;
-        Cry.(Structure).FC_Metal(:) = nan;
-        Cry.(Structure).FC_Halide(:) = nan;
         break
     elseif E_New < E
         Gamma = Gamma*Gamma_Multiplier;
