@@ -247,13 +247,12 @@ if ~ischar(Salt)
     error('Input variable ''Salt'' must be a character array')
 end
 
-%% Check current computer for matlab-gromacs interface
+%% Attempt to build a matlab-gromacs interface
 Longest_Cutoff = max([MDP.RList_Cutoff MDP.RCoulomb_Cutoff MDP.RVDW_Cutoff]);
-home = pwd; 
+home = fileparts(mfilename('fullpath'));
 if ispc % for testing
     Tempdir = tempname;
     gmx = 'wsl source ~/.bashrc; gmx_d';
-    pin = '';
 elseif isunix
     [~,Servertxt] = system('hostname -s | cut -c 1-3');
     Server = strtrim(Servertxt);
@@ -261,45 +260,56 @@ elseif isunix
         scrdir = getenv('SCRATCH');
         Tempdir = tempname(scrdir);
         gmx = 'gmx_d';
-        if Parallel_Mode
-            setenv('OMP_NUM_THREADS','1'); %#ok<*UNRCH>
-            setenv('GMX_PME_NUM_THREADS','1');
-            setenv('GMX_PME_NTHREADS','1');
-            setenv('GMX_OPENMP_MAX_THREADS','1');
-            setenv('KMP_AFFINITY','disabled');
-            pin = ' -pin on -nt 1 -ntmpi 1 -ntomp 1';
-        else
-            pin = '';
+        
+        % Error check: is gmx_d loaded? If no, try to load gmx
+        [~,gmxtest] = system('command -v gmx_d');
+        if isempty(gmxtest)
+            [~,gmxtest] = system('command -v gmx');
+            if isempty(gmxtest)
+                error('neither gmx_d nor gmx are not currently loaded')
+            else
+                warning('gmx_d not loaded, reverting to gromacs single precision')
+                gmx = 'gmx';
+            end
         end
+        
     elseif strcmp(Server,'pat')
         Tempdir = tempname;
         gmx = 'source /home/user/Documents/MATLAB/.matlabrc; gmx_d';
-        if Parallel_Mode
-            setenv('OMP_NUM_THREADS','1');
-            setenv('GMX_PME_NUM_THREADS','1');
-            setenv('GMX_PME_NTHREADS','1');
-            setenv('GMX_OPENMP_MAX_THREADS','1');
-            setenv('KMP_AFFINITY','disabled');
-            pin = ' -pin on -nt 1 -ntmpi 1 -ntomp 1';
-        else
-            pin = '';
-        end
     elseif strcmpi(Server,'Han')
         Tempdir = tempname;
         gmx = 'source ~/.matlabrc; gmx_d';
-        if Parallel_Mode
-            setenv('OMP_NUM_THREADS','1');
-            setenv('GMX_PME_NUM_THREADS','1');
-            setenv('GMX_PME_NTHREADS','1');
-            setenv('GMX_OPENMP_MAX_THREADS','1');
-            setenv('KMP_AFFINITY','disabled');
-            pin = ' -pin on -nt 1 -ntmpi 1 -ntomp 1';
-        else
-            pin = '';
-        end
     end
 else
-    error('Unknown machine.')
+    try
+        scrdir = getenv('SCRATCH');
+        Tempdir = tempname(scrdir);
+        gmx = 'gmx_d';
+        % Error check: is gmx_d loaded? If no, try to load gmx
+        [~,gmxtest] = system('command -v gmx_d');
+        if isempty(gmxtest)
+            [~,gmxtest] = system('command -v gmx');
+            if isempty(gmxtest)
+                error('neither gmx_d nor gmx are not currently loaded')
+            else
+                warning('gmx_d not loaded, reverting to gromacs single precision')
+                gmx = 'gmx';
+            end
+        end
+    catch
+        error('Unknown Server, manually reset sever settings');
+    end
+end
+
+if Parallel_Mode
+    setenv('OMP_NUM_THREADS','1'); %#ok<*UNRCH>
+    setenv('GMX_PME_NUM_THREADS','1');
+    setenv('GMX_PME_NTHREADS','1');
+    setenv('GMX_OPENMP_MAX_THREADS','1');
+    setenv('KMP_AFFINITY','disabled');
+    pin = ' -pin on -nt 1 -ntmpi 1 -ntomp 1';
+else
+    pin = '';
 end
 
 % Load topology template location
