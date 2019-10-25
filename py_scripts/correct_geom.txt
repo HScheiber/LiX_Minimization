@@ -1,0 +1,3 @@
+0.14 0.40 1.4 0.03
+
+Output_Array = Structure_Minimization_Par('LiCl','JC',[1 1; 1 1],true)
