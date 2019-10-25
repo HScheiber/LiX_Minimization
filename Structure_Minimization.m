@@ -518,7 +518,7 @@ if strcmp(Model,'TF')
     EnergySetting = '1 2 3 4 28 29 30 31 32 33 0';
 
     % JC model defined as parameters in GROMACS (faster)
-elseif strcmp(Model,'JC') && (~any(Parameters <= 0,'all') || M_Par == 2) 
+elseif strcmp(Model,'JC') && (~any(Parameters <= 0,[1 2]) || M_Par == 2) 
 
     beta = beta_JC;
 
