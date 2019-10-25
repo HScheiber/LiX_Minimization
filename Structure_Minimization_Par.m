@@ -13,10 +13,20 @@ function Output_Array = Structure_Minimization_Par(Salt,Model,Parameters,OptPos)
 
     % Set up matlab parallel features
     Parcores = feature('numcores');
+    PrefCores = min(Parcores,N);
+    
     if ~isempty(gcp('nocreate'))
-        delete(gcp);
+        Cur_Pool = gcp;
+        Cur_Workers = Cur_Pool.NumWorkers;
+        if Cur_Workers ~= PrefCores
+            delete(Cur_Pool);
+            ppool = parpool(min(Parcores,N));
+        else
+            ppool = Cur_Pool;
+        end
+    else
+        ppool = parpool(min(Parcores,N)); 
     end
-    ppool = parpool(min(Parcores,N));
     partitions = 1:N;
     f(partitions) = parallel.FevalFuture;
     
