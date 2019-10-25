@@ -195,7 +195,6 @@ Cry.Wurtzite.N = 4;
 Cry.Wurtzite.Label = 'W';
 
 %% ADDITIONAL SETTINGS
-Settings.Submission_dir = tempname;
 Settings.Hours = 24; % Max time for job (hours)
 Settings.Mins = 0; % Max time for job (minutes)
 Settings.nMols_per_Task = -1; % -1 to fix the number of cores
@@ -250,15 +249,17 @@ end
 
 %% Check current computer for matlab-gromacs interface
 Longest_Cutoff = max([MDP.RList_Cutoff MDP.RCoulomb_Cutoff MDP.RVDW_Cutoff]);
-Maindir = Settings.Submission_dir;
 home = pwd; 
 if ispc % for testing
+    Tempdir = tempname;
     gmx = 'wsl source ~/.bashrc; gmx_d';
     pin = '';
 elseif isunix
     [~,Servertxt] = system('hostname -s | cut -c 1-3');
     Server = strtrim(Servertxt);
     if strcmp(Server,'ced') || strcmp(Server,'cdr')
+        scrdir = getenv('SCRATCH');
+        Tempdir = tempname(scrdir);
         gmx = 'gmx_d';
         if Parallel_Mode
             setenv('OMP_NUM_THREADS','1'); %#ok<*UNRCH>
@@ -271,7 +272,21 @@ elseif isunix
             pin = '';
         end
     elseif strcmp(Server,'pat')
+        Tempdir = tempname;
         gmx = 'source /home/user/Documents/MATLAB/.matlabrc; gmx_d';
+        if Parallel_Mode
+            setenv('OMP_NUM_THREADS','1');
+            setenv('GMX_PME_NUM_THREADS','1');
+            setenv('GMX_PME_NTHREADS','1');
+            setenv('GMX_OPENMP_MAX_THREADS','1');
+            setenv('KMP_AFFINITY','disabled');
+            pin = ' -pin on -nt 1 -ntmpi 1 -ntomp 1';
+        else
+            pin = '';
+        end
+    elseif strcmpi(Server,'Han')
+        Tempdir = tempname;
+        gmx = 'source ~/.matlabrc; gmx_d';
         if Parallel_Mode
             setenv('OMP_NUM_THREADS','1');
             setenv('GMX_PME_NUM_THREADS','1');
@@ -324,7 +339,7 @@ Metal_Info = elements('Sym',Metal);
 Halide_Info = elements('Sym',Halide);
 
 % Update Directory
-Current_Directory = fullfile(Maindir,Salt);
+Current_Directory = fullfile(Tempdir,Salt);
 
 % Create directory if it does not exist
 if ~exist(Current_Directory,'dir')
@@ -387,7 +402,7 @@ else
 end
 
 % Update Directory
-Current_Directory = fullfile(Maindir,Salt,Structure);
+Current_Directory = fullfile(Tempdir,Salt,Structure);
 
 % Create directory if it does not exist
 if ~exist(Current_Directory,'dir')
@@ -423,7 +438,7 @@ NAtoms = (N_Supercell^3)*Cry.(Structure).N;
 Topology_Temp_Struct = strrep(Topology_Temp_Struct,'##N##',num2str(N_Supercell));
 
 % Update Directory
-Current_Directory = fullfile(Maindir,Salt,...
+Current_Directory = fullfile(Tempdir,Salt,...
     Structure,Model);
 
 % Create directory if it does not exist
@@ -657,7 +672,7 @@ for Index = 1:MaxCycles
     end
 
     OptimizationLoop(gmx,Cry,Salt,Structure,Model,Label,N_Supercell,...
-        Maindir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
+        Tempdir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
         Topology_text,TableFile,EnergySetting,OptTxt,pin);
 
     disp(['********************Cycle ' num2str(Index) ' Initial Conditions********************']);
@@ -682,7 +697,7 @@ for Index = 1:MaxCycles
             CryMinus_a.(Structure).b,CryMinus_a.(Structure).c,Structure);
     end
     OptimizationLoop(gmx,CryMinus_a,Salt,Structure,Model,Label,N_Supercell,...
-        Maindir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
+        Tempdir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
         Topology_text,TableFile,EnergySetting,OptTxt,pin);
     E_Minus_a = GrabEnergy(OptDir,FileBase);
 
@@ -698,7 +713,7 @@ for Index = 1:MaxCycles
             CryPlus_a.(Structure).b,CryPlus_a.(Structure).c,Structure);
     end
     OptimizationLoop(gmx,CryPlus_a,Salt,Structure,Model,Label,N_Supercell,...
-        Maindir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
+        Tempdir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
         Topology_text,TableFile,EnergySetting,OptTxt,pin);
     E_Plus_a = GrabEnergy(OptDir,FileBase);
 
@@ -716,7 +731,7 @@ for Index = 1:MaxCycles
         CryMinus_b.(Structure).b = Cry.(Structure).b - h(2);
 
         OptimizationLoop(gmx,CryMinus_b,Salt,Structure,Model,Label,N_Supercell,...
-            Maindir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
+            Tempdir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
             Topology_text,TableFile,EnergySetting,OptTxt,pin);
         E_Minus_b = GrabEnergy(OptDir,FileBase);
 
@@ -729,7 +744,7 @@ for Index = 1:MaxCycles
         CryPlus_b.(Structure).b = Cry.(Structure).b + h(2);
 
         OptimizationLoop(gmx,CryPlus_b,Salt,Structure,Model,Label,N_Supercell,...
-            Maindir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
+            Tempdir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
             Topology_text,TableFile,EnergySetting,OptTxt,pin);
         E_Plus_b = GrabEnergy(OptDir,FileBase);
 
@@ -748,7 +763,7 @@ for Index = 1:MaxCycles
         CryMinus_c.(Structure).c = Cry.(Structure).c - h(3);
 
         OptimizationLoop(gmx,CryMinus_c,Salt,Structure,Model,Label,N_Supercell,...
-            Maindir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
+            Tempdir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
             Topology_text,TableFile,EnergySetting,OptTxt,pin)
         E_Minus_c = GrabEnergy(OptDir,FileBase);
 
@@ -761,7 +776,7 @@ for Index = 1:MaxCycles
         CryPlus_c.(Structure).c = Cry.(Structure).c + h(3);
 
         OptimizationLoop(gmx,CryPlus_c,Salt,Structure,Model,Label,N_Supercell,...
-            Maindir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
+            Tempdir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
             Topology_text,TableFile,EnergySetting,OptTxt,pin)
         E_Plus_c = GrabEnergy(OptDir,FileBase);
 
@@ -801,7 +816,7 @@ for Index = 1:MaxCycles
 
         % Recalculate energy at new point
         OptimizationLoop(gmx,CryNew,Salt,Structure,Model,Label,N_Supercell,...
-            Maindir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
+            Tempdir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
             Topology_text,TableFile,EnergySetting,OptTxt,pin);
         E_New = GrabEnergy(OptDir,FileBase);
 
@@ -858,7 +873,7 @@ for Index = 1:MaxCycles
 
         N_Supercell_out = OptimizationLoopFC(gmx,CryNew,Salt,Structure,...
             Model,Label,N_Supercell,...
-            Maindir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
+            Tempdir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
             Topology_text,TableFile,EnergySettingAlt,OptTxt,pin);
 
         E_New = GrabEnergyFinal(OptDir,FileBase);
@@ -941,7 +956,7 @@ for Index = 1:MaxCycles
         Cry = CryNew;
         disp(['Energy convergence reached after ' num2str(Index) ' cycles.' newline 'Final recalculation of energy...'])
         OptimizationLoop(gmx,Cry,Salt,Structure,Model,Label,N_Supercell,...
-            Maindir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
+            Tempdir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
             Topology_text,TableFile,EnergySetting,OptTxt,pin);
 
         E = GrabEnergy(OptDir,FileBase);
@@ -954,6 +969,12 @@ for Index = 1:MaxCycles
         disp('No non-trivial solution found.')
         system(del_command);
         skip_results = true;
+        E = nan;
+        Cry.(Structure).a = nan;
+        Cry.(Structure).b = nan;
+        Cry.(Structure).c = nan;
+        Cry.(Structure).FC_Metal(:) = nan;
+        Cry.(Structure).FC_Halide(:) = nan;
         break
     elseif E_New < E
         Gamma = Gamma*Gamma_Multiplier;
@@ -988,8 +1009,8 @@ Output_Array = [E Cry.(Structure).a Cry.(Structure).b Cry.(Structure).c ...
 
 % Cleanup temp directory
 try
-    rmdir(Settings.Submission_dir,'s');
+    rmdir(Tempdir,'s');
 catch
-    disp(['Unable to delete temporary directory: ' Settings.Submission_dir])
+    disp(['Unable to delete temporary directory: ' Tempdir])
 end
 end
