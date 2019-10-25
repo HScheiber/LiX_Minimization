@@ -261,7 +261,7 @@ elseif isunix
         scrdir = getenv('SCRATCH');
         Tempdir = tempname(scrdir);
         gmx = 'gmx_d';
-        threadlock = '';
+        threadlock = ' -nt 1';
         
         % Error check: is gmx_d loaded? If no, try to load gmx
         [~,gmxtest] = system('command -v gmx_d');
