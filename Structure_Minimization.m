@@ -253,6 +253,7 @@ home = fileparts(mfilename('fullpath'));
 if ispc % for testing
     Tempdir = tempname;
     gmx = 'wsl source ~/.bashrc; gmx_d';
+    ntmpi = ' -ntmpi 1';
 elseif isunix
     [~,Servertxt] = system('hostname -s | cut -c 1-3');
     Server = strtrim(Servertxt);
@@ -260,6 +261,7 @@ elseif isunix
         scrdir = getenv('SCRATCH');
         Tempdir = tempname(scrdir);
         gmx = 'gmx_d';
+        ntmpi = '';
         
         % Error check: is gmx_d loaded? If no, try to load gmx
         [~,gmxtest] = system('command -v gmx_d');
@@ -276,15 +278,18 @@ elseif isunix
     elseif strcmp(Server,'pat')
         Tempdir = tempname;
         gmx = 'source /home/user/Documents/MATLAB/.matlabrc; gmx_d';
+        ntmpi = ' -ntmpi 1';
     elseif strcmpi(Server,'Han')
         Tempdir = tempname;
         gmx = 'source ~/.matlabrc; gmx_d';
+        ntmpi = ' -ntmpi 1';
     end
 else
     try
         scrdir = getenv('SCRATCH');
         Tempdir = tempname(scrdir);
         gmx = 'gmx_d';
+        ntmpi = '';
         % Error check: is gmx_d loaded? If no, try to load gmx
         [~,gmxtest] = system('command -v gmx_d');
         if isempty(gmxtest)
@@ -307,7 +312,7 @@ if Parallel_Mode
     setenv('GMX_PME_NTHREADS','1');
     setenv('GMX_OPENMP_MAX_THREADS','1');
     setenv('KMP_AFFINITY','disabled');
-    pin = ' -pin on -nt 1 -ntmpi 1 -ntomp 1';
+    pin = [' -pin on -nt 1' ntmpi ' -ntomp 1'];
 else
     pin = '';
 end
