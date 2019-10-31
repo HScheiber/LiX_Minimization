@@ -279,7 +279,7 @@ elseif isunix
         Tempdir = tempname;
         gmx = 'source /home/user/Documents/MATLAB/.matlabrc; gmx_d';
         threadlock = ' -nt 1 -ntmpi 1 -ntomp 1';
-    elseif strcmpi(Server,'Han')
+    elseif strcmpi(Server,'Han') || strcmp(Server,'dhc')
         Tempdir = tempname;
         gmx = 'source ~/.matlabrc; gmx_d';
         threadlock = ' -nt 1 -ntmpi 1 -ntomp 1';
