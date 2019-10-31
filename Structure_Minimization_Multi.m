@@ -3,8 +3,8 @@
 % model in parallel.
 %
 %% INFO ABOUT INPUTS
-% Models is a string variable. One of 'JC' or 'TF'. Sets the mathematical form of the model to use.
-% Salts is either a string or cell array. Can be any of: 'LiF' 'LiCl' 'LiBr' 'LiI' 'NaCl'
+% Model is a string variable. One of 'JC' or 'TF'. Sets the mathematical form of the model to use.
+% Salt is either a string or cell array. Can be any of: 'LiF' 'LiCl' 'LiBr' 'LiI' 'NaCl'
 % Structure is a string. Can be any of: 'Rocksalt' 'Wurtzite' 'Sphalerite' 'CsCl' 'NiAs' 'BetaBeO' 'FiveFive'
 % OptPos is a Boolean. If true, then the optimization algorithm optimizes
 % for lattice parameters AND fractional coordinates. If false, the
