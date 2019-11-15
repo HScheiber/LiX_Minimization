@@ -446,9 +446,6 @@ Coordinate_text = strrep(Coordinate_text,'##HAL##',Hal);
 % Calculate size of supercell
 N_Supercell = ceil((N_atoms/Cry.(Structure).N)^(1/3));
 
-% Calculate number of atoms of Metal and Halide in expanded box
-NAtoms = (N_Supercell^3)*Cry.(Structure).N;
-
 % Add number of unit cells to topology file
 Topology_Temp_Struct = strrep(Topology_Temp_Struct,'##N##',num2str(N_Supercell));
 
@@ -622,13 +619,13 @@ elseif strcmp(Model,'JC') && (any(Parameters <= 0,'all') || M_Par == 3)
     EnergySetting = '1 2 3 4 28 29 30 31 32 33 0';
 end
 
-% Save topology file into current directory
-Topology_File = fullfile(Current_Directory,...
-    [Salt '_' Label '_' Model '.top']);
-
 TotalTimer = tic;
 disp(['Beginning ' Salt ' ' Structure ' ' Model ' Optimization...'])
-topol_created = false; % Keep track of whether or not topology file has been generated
+disp(['Model Chosen: ' Model])
+disp('Parameter input: ')
+for i = 1:size(Parameters,1)
+    disp(num2str(Parameters(i,:),'%2.4f '))
+end
 
 % Update directory details
 FileBase = [Salt '_' Label '_' Model '_' OptTxt];
