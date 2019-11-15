@@ -41,18 +41,22 @@ Continue_if_no_IC = true; % When true, uses input initial conditions if none are
 Find_Min_Params = true; % When true, finds lowest energy parameters for IC based on Data_Types. When false, uses input IC
 Find_Similar_Params = false; % When true, finds lowest energy parameters for IC if possible, but if no data is available, also looks for the same IC with non-scaled model
 N_atoms = 10000; % Minimum number of atoms to include in super cell
-emtol = 1; %1e-3 [kJ mol-1 nm-1] The position minimization is converged (per cycle) when the maximum force is smaller than this value
+emtol = 1e-3; %1e-3 [kJ mol-1 nm-1] The position minimization is converged (per cycle) when the maximum force is smaller than this value
 MaxCycles = 1000; % Maximum number of optimization cycles.
 Maintain_Symmetry = true; % If true, maintains the space group symmetry of the unit cell
 Energy_Tol = 1e-4; % kJ/mol. Convergence reached when change in energy between cycles is less than this value
 Gradient_Tol_RMS = 0.58959; %kJ/(mol Ang) Convergence criteria 2: must have RMS cell parameter gradient less than this value for convergence
 Gradient_Tol_Max = 0.88439; %kJ/(mol Ang) Convergence criteria 3: must have maximum cell parameter gradient less than this value for convergence
-Gamma = 1; % Initial step size coefficient (multiplied by numerical derivative along each dimension) used for moving along gradient
+Gamma_Init = 1; % Initial step size coefficient (multiplied by numerical derivative along each dimension) used for moving along gradient
 Gamma_Multiplier = 2; %1.5; % Scale Gamma by this value after each cycle (should be greater than 1)
 Max_Step_size = 0.5; % Maximum possible step size in angstroms
 alpha = 1/2;
 beta_JC = 0.5; % Reduce Gamma by this multiple when step size is too large (for JC models).
 beta_TF = 0.1; % Reduce Gamma by this multiple when step size is too large (for TF models).
+MaxLineTries = 10; % Maximum number of tries to compute lower energy point before decreasing numerical derivative step size
+Max_cycle_restarts = 10; % Maximum number of cycle restarts
+OptPos_SingleStage = true; % When true, optimize positions and lattice parameters simultaneously by numerical gradients
+E_Unphys = -3e3; % unphysical energy cutoff
 
 %% TOPOLOGY GLOBAL SETTINGS
 Top.gen_pairs = 'no'; % Automatically generate pairs
@@ -348,6 +352,10 @@ else
     OptTxt = 'CELLOPT';
 end
 
+if ~Maintain_Symmetry
+    OptTxt = [OptTxt '_SG1'];
+end
+
 % Get Metal and Halide info from Current Salt
 [Metal,Halide] = Separate_Metal_Halide(Salt);
 Metal_Info = elements('Sym',Metal);
@@ -390,31 +398,37 @@ Label = Cry.(Structure).Label;
 if Maintain_Symmetry
     switch Structure
         case 'BetaBeO'
-            OptB = false; % Optimize with respect to lattice parameter b as well.
-            OptC = true; % Optimize with respect to lattice parameter c as well.
+            DOF = {'a' 'c'};
+            DOF_Units = {[' ' char(0197)] [' ' char(0197)]};
         case 'CsCl'
-            OptB = false; % Optimize with respect to lattice parameter b as well.
-            OptC = false; % Optimize with respect to lattice parameter c as well.
+            DOF = {'a'};
+            DOF_Units = {[' ' char(0197)]};
         case 'FiveFive'
-            OptB = true; % Optimize with respect to lattice parameter b as well.
-            OptC = true; % Optimize with respect to lattice parameter c as well.
+            DOF = {'a' 'b' 'c'};
+            DOF_Units = {[' ' char(0197)] [' ' char(0197)] [' ' char(0197)]};
         case 'Sphalerite'
-            OptB = false; % Optimize with respect to lattice parameter b as well.
-            OptC = false; % Optimize with respect to lattice parameter c as well.
+            DOF = {'a'};
+            DOF_Units = {[' ' char(0197)]};
         case 'NiAs'
-            OptB = false; % Optimize with respect to lattice parameter b as well.
-            OptC = true; % Optimize with respect to lattice parameter c as well.
+            DOF = {'a' 'c'};
+            DOF_Units = {[' ' char(0197)] [' ' char(0197)]};
         case 'Rocksalt'
-            OptB = false; % Optimize with respect to lattice parameter b as well.
-            OptC = false; % Optimize with respect to lattice parameter c as well.
+            DOF = {'a'};
+            DOF_Units = {[' ' char(0197)]};
         case 'Wurtzite'
-            OptB = false; % Optimize with respect to lattice parameter b as well.
-            OptC = true; % Optimize with respect to lattice parameter c as well.
+            DOF = {'a' 'c'};
+            DOF_Units = {[' ' char(0197)] [' ' char(0197)]};
     end
+    DOF_txt = DOF;
 else
-    OptB = true;
-    OptC = true;
+    DOF = {'a' 'b' 'c' 'alpha' 'beta' 'gamma'};
+    DOF_txt = {'a' 'b' 'c' char(945) char(946) char(947)};
+    DOF_Units = {[' ' char(0197)] [' ' char(0197)] [' ' char(0197)] ...
+        [' ' char(0176)] [' ' char(0176)] [' ' char(0176)]};
 end
+
+% How many Degrees of freedom
+N_DOF = length(DOF);
 
 % Update Directory
 Current_Directory = fullfile(Tempdir,Salt,Structure);
@@ -655,7 +669,6 @@ if Find_Min_Params
     if ~Continue_if_no_IC && ~Updated
         disp(['No Suitable Initial Conditions Found. For '  Salt ' ' Structure ' ' Model ' Optimization.'])
         disp('Calculation Halted.')
-        disp('Energy convergence reached after 0 cycles.')
         system(del_command);
          % Delete tables
         if strcmp(Model,'TF') || (strcmp(Model,'JC') && Dispersion_Scale <= 0)
@@ -674,11 +687,14 @@ end
 skip_results = false;
 auto_h = true;
 [~,~] = system(rm_command);
+Cycle_restarts = 0;
+Gamma = Gamma_Init;
 for Index = 1:MaxCycles
     Restart_cycle = false;
     % Calculate reasonable step size
     if auto_h
-        h = nuderst([Cry.(Structure).a Cry.(Structure).b Cry.(Structure).c]);
+        h = nuderst([Cry.(Structure).a Cry.(Structure).b Cry.(Structure).c ...
+            Cry.(Structure).alpha Cry.(Structure).beta Cry.(Structure).gamma]);
     else
         auto_h = true;
     end
@@ -686,149 +702,127 @@ for Index = 1:MaxCycles
     OptimizationLoop(gmx,Cry,Salt,Structure,Model,Label,N_Supercell,...
         Tempdir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
         Topology_text,TableFile,EnergySetting,OptTxt,pin);
+    E = GrabEnergy(OptDir,FileBase);
 
     disp(['********************Cycle ' num2str(Index) ' Initial Conditions********************']);
-    disp(['Lattice Parameter a = ' num2str(Cry.(Structure).a,'%2.8f') ' ' char(0197) '.']);
-    disp(['Lattice Parameter b = ' num2str(Cry.(Structure).b,'%2.8f') ' ' char(0197) '.']);
-    disp(['Lattice Parameter c = ' num2str(Cry.(Structure).c,'%2.8f') ' ' char(0197) '.']);
-    disp(['Asym. Unit. Fractional Coordinates for ' Metal ': ' num2str(Cry.(Structure).FC_Metal(1,:),'%2.8f ')]);
-    disp(['Asym. Unit. Fractional Coordinates for ' Halide ': ' num2str(Cry.(Structure).FC_Halide(1,:),'%2.8f ')]);
-    E = GrabEnergy(OptDir,FileBase);
+    for Didx = 1:N_DOF
+        disp(['Lattice Parameter ' DOF_txt{Didx} ' = ' ...
+            num2str(Cry.(Structure).(DOF{Didx}),'%2.8f') DOF_Units{Didx} '.' ...
+            ' Num. Der. Step Size: ' char(948) '(' DOF_txt{Didx} ') = ' ...
+            num2str(h(Didx),'%2.8f') DOF_Units{Didx} '.']);
+    end
+    disp(['Fractional Coordinates for ' Metal ': ']);
+    disp(num2str(Cry.(Structure).FC_Metal(:,:),'%2.8f '))
+    disp(['Fractional Coordinates for ' Halide ': ']);
+    disp(num2str(Cry.(Structure).FC_Halide(:,:),'%2.8f '))
     disp(['Initial E = ' num2str(E,'%4.10f') ' kJ/mol']);
-    disp(['Numerical Derivative Step Sizes: h(a) = ' num2str(h(1)) ' ' char(0197) '; h(b) = ' num2str(h(2)) ' ' char(0197) '; h(c) = ' num2str(h(3)) ' ' char(0197) '.'])
     disp(['Step size coefficient: ' num2str(Gamma) ])
     Telap = datestr(seconds(toc(TotalTimer)),'HH:MM:SS');
     disp(['Time Elapsed: ' Telap])
     disp('******************************************************************')
 
-    % Get energy at a minus 1 step
-    CryMinus_a = Cry;
-    CryMinus_a.(Structure).a = Cry.(Structure).a - h(1);
-    if Maintain_Symmetry
-        [CryMinus_a.(Structure).b,CryMinus_a.(Structure).c] = SymmetryAdapt(CryMinus_a.(Structure).a,...
-            CryMinus_a.(Structure).b,CryMinus_a.(Structure).c,Structure);
+    % Check for unphysical energy
+    if E < E_Unphys
+        disp(['Warning: Unphysical energy detected after ' num2str(Index) ' cycles.'])
+        disp('Model may have local minimum at complete overlap of opposite charges.')
+        disp('No non-trivial solution possible. Removing output files.')
+        system(del_command);
+        skip_results = true;
+        E = nan;
+        Cry.(Structure).a = nan;
+        Cry.(Structure).b = nan;
+        Cry.(Structure).c = nan;
+        Cry.(Structure).FC_Metal(:) = nan;
+        Cry.(Structure).FC_Halide(:) = nan;
+        break
     end
-    OptimizationLoop(gmx,CryMinus_a,Salt,Structure,Model,Label,N_Supercell,...
-        Tempdir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
-        Topology_text,TableFile,EnergySetting,OptTxt,pin);
-    E_Minus_a = GrabEnergy(OptDir,FileBase);
+      
+    % Loop through each DOF
+    Gradient = nan(1,N_DOF);
+    for Didx = 1:N_DOF
 
-    Telap = datestr(seconds(toc(TotalTimer)),'HH:MM:SS');
-    disp(['Finite step a = -' num2str(h(1),'%2.8f') ' ' char(0197) ' Calculated. Time Elapsed: ' Telap]);
-    disp([char(916) 'E (a-1) = ' num2str(E_Minus_a-E,'%4.10f') ' kJ/mol.']);
+        CurDOF = DOF{Didx};
+        CurDOFtxt = DOF_txt{Didx};
+        CurDOFunit = DOF_Units{Didx};
+        delta = h(Didx);
 
-    % Get energy at a plus 1 step
-    CryPlus_a = Cry;
-    CryPlus_a.(Structure).a = Cry.(Structure).a + h(1);
-    if Maintain_Symmetry
-        [CryPlus_a.(Structure).b,CryPlus_a.(Structure).c] = SymmetryAdapt(CryPlus_a.(Structure).a,...
-            CryPlus_a.(Structure).b,CryPlus_a.(Structure).c,Structure);
-    end
-    OptimizationLoop(gmx,CryPlus_a,Salt,Structure,Model,Label,N_Supercell,...
-        Tempdir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
-        Topology_text,TableFile,EnergySetting,OptTxt,pin);
-    E_Plus_a = GrabEnergy(OptDir,FileBase);
+        % Get energy at minus step
+        CryMinus = Cry;
+        CryMinus.(Structure).(CurDOF) = CryMinus.(Structure).(CurDOF) - delta;
 
-    Telap = datestr(seconds(toc(TotalTimer)),'HH:MM:SS');
-    disp(['Finite step a = +' num2str(h(1),'%2.8f') ' ' char(0197) ' Calculated. Time Elapsed: ' Telap]);
-    disp([char(916) 'E (a+1) = ' num2str(E_Plus_a-E,'%4.10f') ' kJ/mol']);
+        % Update transformation matrix
+        CryMinus.(Structure).Transform = GenTransformMatrix(CryMinus.(Structure));
 
-    % Derivative wrt a (and constraints)
-    dE_da = (1/(2*h(1)))*(-E_Minus_a + E_Plus_a);
+        % Maintain symmetry if set
+        if Maintain_Symmetry && strcmp(CurDOF,'a')
+            [CryMinus.(Structure).b,CryMinus.(Structure).c] = SymmetryAdapt(CryMinus.(Structure).a,...
+                CryMinus.(Structure).b,CryMinus.(Structure).c,Structure); %#ok<*UNRCH>
+        end
 
-    % Get OptB steps
-    if OptB
-        % Get energy at a minus 1 step
-        CryMinus_b = Cry;
-        CryMinus_b.(Structure).b = Cry.(Structure).b - h(2);
-
-        OptimizationLoop(gmx,CryMinus_b,Salt,Structure,Model,Label,N_Supercell,...
-            Tempdir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
+        % Generate energy at new point
+        OptimizationLoop(gmx,CryMinus,Salt,Structure,Model_Scaled2,Label,N_Supercell,...
+            Maindir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
             Topology_text,TableFile,EnergySetting,OptTxt,pin);
-        E_Minus_b = GrabEnergy(OptDir,FileBase);
+        E_Minus = GrabEnergy(OptDir,FileBase);
 
         Telap = datestr(seconds(toc(TotalTimer)),'HH:MM:SS');
-        disp(['Finite step b = -' num2str(h(2),'%2.8f') ' ' char(0197) ' Calculated. Time Elapsed: ' Telap]);
-        disp([char(916) 'E (b-1) = ' num2str(E_Minus_b-E,'%4.10f') ' kJ/mol']);
+        disp(['Finite step ' CurDOFtxt ' -' num2str(delta,'%2.2e') ...
+            CurDOFunit ' Calculated. ' char(916) 'E(' CurDOFtxt '-' char(948) ...
+            ') = ' num2str(E_Minus-E,'%+4.4e') ' kJ/mol. Time Elapsed: ' Telap]);
 
-        % Get energy at b plus 1 step
-        CryPlus_b = Cry;
-        CryPlus_b.(Structure).b = Cry.(Structure).b + h(2);
+        % Get energy at plus step
+        CryPlus = Cry;
+        CryPlus.(Structure).(CurDOF) = CryPlus.(Structure).(CurDOF) + delta;
 
-        OptimizationLoop(gmx,CryPlus_b,Salt,Structure,Model,Label,N_Supercell,...
-            Tempdir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
+        % Update transformation matrix
+        CryPlus.(Structure).Transform = GenTransformMatrix(CryPlus.(Structure));
+
+        % Maintain symmetry if set
+        if Maintain_Symmetry && strcmp(CurDOF,'a')
+            [CryPlus.(Structure).b,CryPlus.(Structure).c] = SymmetryAdapt(CryPlus.(Structure).a,...
+                CryPlus.(Structure).b,CryPlus.(Structure).c,Structure); %#ok<*UNRCH>
+        end
+
+        % Generate Energy at new point
+        OptimizationLoop(gmx,CryPlus,Salt,Structure,Model_Scaled2,Label,N_Supercell,...
+            Maindir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
             Topology_text,TableFile,EnergySetting,OptTxt,pin);
-        E_Plus_b = GrabEnergy(OptDir,FileBase);
+        E_Plus = GrabEnergy(OptDir,FileBase);
 
         Telap = datestr(seconds(toc(TotalTimer)),'HH:MM:SS');
-        disp(['Finite step b = +' num2str(h(2),'%2.8f') ' ' char(0197) ' Calculated. Time Elapsed: ' Telap]);
-        disp([char(916) 'E (b+1) = ' num2str(E_Plus_b-E,'%4.10f') ' kJ/mol']);
+        disp(['Finite step ' CurDOFtxt ' +' num2str(delta,'%2.2e') ...
+            CurDOFunit ' Calculated. ' char(916) 'E(' CurDOFtxt '+' char(948) ...
+            ') = ' num2str(E_Plus-E,'%+4.4e') ' kJ/mol. Time Elapsed: ' Telap]);
 
-        % Derivative wrt b (and constraints)
-        dE_db = (1/(2*h(2)))*(-E_Minus_b + E_Plus_b);
+        % 3-Point Numerical derivative wrt current DOF
+        Gradient(Didx) = (1/(2*h(Didx)))*(-E_Minus + E_Plus);
+        [~,~] = system(rm_command);
     end
-
-    % Get OptC steps
-    if OptC
-        % Get energy at a minus 1 step
-        CryMinus_c = Cry;
-        CryMinus_c.(Structure).c = Cry.(Structure).c - h(3);
-
-        OptimizationLoop(gmx,CryMinus_c,Salt,Structure,Model,Label,N_Supercell,...
-            Tempdir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
-            Topology_text,TableFile,EnergySetting,OptTxt,pin)
-        E_Minus_c = GrabEnergy(OptDir,FileBase);
-
-        Telap = datestr(seconds(toc(TotalTimer)),'HH:MM:SS');
-        disp(['Finite step c = -' num2str(h(3),'%2.8f') ' ' char(0197) ' Calculated. Time Elapsed: ' Telap]);
-        disp([char(916) 'E (c-1) = ' num2str(E_Minus_c-E,'%4.10f') ' kJ/mol']);
-
-        % Get energy at b plus 1 step
-        CryPlus_c = Cry;
-        CryPlus_c.(Structure).c = Cry.(Structure).c + h(3);
-
-        OptimizationLoop(gmx,CryPlus_c,Salt,Structure,Model,Label,N_Supercell,...
-            Tempdir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
-            Topology_text,TableFile,EnergySetting,OptTxt,pin)
-        E_Plus_c = GrabEnergy(OptDir,FileBase);
-
-        Telap = datestr(seconds(toc(TotalTimer)),'HH:MM:SS');
-        disp(['Finite step c = +' num2str(h(3),'%2.8f') ' ' char(0197) ' Calculated. Time Elapsed: ' Telap]);
-        disp([char(916) 'E (c+1) = ' num2str(E_Plus_c-E,'%4.10f') ' kJ/mol']);
-
-        % Derivative wrt c (and constraints)
-        dE_dc = (1/(2*h(3)))*(-E_Minus_c + E_Plus_c);
-    end
-
-    % Calculate gradient
-    Gradient = dE_da;
-    if OptB
-        Gradient(end+1) = dE_db;
-    end
-    if OptC
-        Gradient(end+1) = dE_dc;
-    end
-
+    
     % Move one step in direction of steepest descent
-    for StepInd = 1:11
+    for StepInd = 1:MaxLineTries
 
         CryNew = Cry;
 
-        CryNew.(Structure).a = Cry.(Structure).a - sign(dE_da)*min(abs(Gamma*dE_da),Max_Step_size);
+        for Didx = 1:N_DOF
+
+            CurDOF = DOF{Didx};
+            CurGrad = Gradient(Didx);
+
+            CryNew.(Structure).(CurDOF) = Cry.(Structure).(CurDOF)...
+                - sign(CurGrad)*min(abs(Gamma*CurGrad),Max_Step_size);
+        end
         if Maintain_Symmetry
             [CryNew.(Structure).b,CryNew.(Structure).c] = SymmetryAdapt(CryNew.(Structure).a,...
                 CryNew.(Structure).b,CryNew.(Structure).c,Structure);
         end
-        if OptB
-            CryNew.(Structure).b = Cry.(Structure).b - sign(dE_db)*min(abs(Gamma*dE_db),Max_Step_size);
-        end
-        if OptC
-            CryNew.(Structure).c = Cry.(Structure).c - sign(dE_dc)*min(abs(Gamma*dE_dc),Max_Step_size);
-        end
+
+        % Update transformation matrix
+        CryNew.(Structure).Transform = GenTransformMatrix(CryNew.(Structure));
 
         % Recalculate energy at new point
-        OptimizationLoop(gmx,CryNew,Salt,Structure,Model,Label,N_Supercell,...
-            Tempdir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
+        OptimizationLoop(gmx,CryNew,Salt,Structure,Model_Scaled2,Label,N_Supercell,...
+            Maindir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
             Topology_text,TableFile,EnergySetting,OptTxt,pin);
         E_New = GrabEnergy(OptDir,FileBase);
 
@@ -837,39 +831,55 @@ for Index = 1:MaxCycles
 
             Telap = datestr(seconds(toc(TotalTimer)),'HH:MM:SS');
             disp(['Optimizing step size... Time Elapsed: ' Telap])
-            system(rm_command);
-        elseif E_New > E
-            Telap = datestr(seconds(toc(TotalTimer)),'HH:MM:SS');                               
-            disp(['Finite step in direction of steepest descent calculated. Time Elapsed: ' Telap]);
-            disp([char(916) 'E = ' num2str(E_New-E,'%4.10f') ' kJ/mol']);
-            disp(['RMS ' char(8711) 'E = ' num2str(rms(Gradient)) ' kJ/mol A'])
-            disp(['|Max(' char(8711) 'E)| = ' num2str(max(abs(Gradient))) ' kJ/mol A'])
-            disp('Step size too large, decreasing...');
-            Gamma = beta*Gamma;
+            [~,~] = system(rm_command);
         else
             Telap = datestr(seconds(toc(TotalTimer)),'HH:MM:SS');
             disp(['Finite step in direction of steepest descent calculated. Time Elapsed: ' Telap]);
             disp([char(916) 'E = ' num2str(E_New-E,'%4.10f') ' kJ/mol']);
-            disp(['RMS ' char(8711) 'E = ' num2str(rms(Gradient)) ' kJ/mol A'])
-            disp(['|Max(' char(8711) 'E)| = ' num2str(max(abs(Gradient))) ' kJ/mol A'])
+            disp(['RMS ' char(8711) 'E = ' num2str(rms(Gradient)) ' kJ/mol ' char(0197)])
+            disp(['|Max(' char(8711) 'E)| = ' num2str(max(abs(Gradient))) ' kJ/mol ' char(0197)])
             break
         end
 
-        if StepInd > 10
+        if StepInd >= MaxLineTries
             h = h./10;
-            Gamma = (1/beta^10)*Gamma*0.1;
+            Gamma = Gamma_Init;
             Restart_cycle = true;
-            system(rm_command);
+            [~,~] = system(rm_command);
             break
         end
     end
-
+    
     if Restart_cycle
-        disp('Unable to find a point of lower energy in chosen direction, starting next cycle with modified numerical derivative step size.');
-        auto_h = false;
-        continue
+        Cycle_restarts = Cycle_restarts+1;
+        if Cycle_restarts >= Max_cycle_restarts
+            disp(['Unable to find lower energy point after ' num2str(Max_cycle_restarts) ' attempts.'])
+            disp('Stopping here.')
+            disp(['Energy convergence reached after ' num2str(Index) ' cycles.'])
+            break
+        else
+            auto_h = false;
+            disp('Unable to find a point of lower energy in chosen direction, starting next cycle with modified numerical derivative step size.');
+            continue
+        end
     end
-
+    
+    % Check for unphysical energy
+    if abs(E_New - E) > 4e3 || (E_New < E_Unphys)
+        disp(['Warning: Unphysical energy detected after ' num2str(Index) ' cycles.'])
+        disp('Model may have local minimum at complete overlap of opposite charges.')
+        disp('No non-trivial solution possible. Removing output files.')
+        system(del_command);
+        skip_results = true;
+        E = nan;
+        Cry.(Structure).a = nan;
+        Cry.(Structure).b = nan;
+        Cry.(Structure).c = nan;
+        Cry.(Structure).FC_Metal(:) = nan;
+        Cry.(Structure).FC_Halide(:) = nan;
+        break
+    end
+    
     % Optimize wrt positions
     if OptPos
         % Save MDP variable for later
@@ -884,10 +894,11 @@ for Index = 1:MaxCycles
         EnergySettingAlt = '1 2 3 4 25 26 27 28 29 30 0'; 
 
         N_Supercell_out = OptimizationLoopFC(gmx,CryNew,Salt,Structure,...
-            Model,Label,N_Supercell,...
-            Tempdir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
+            Model_Scaled2,Label,N_Supercell,...
+            Maindir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
             Topology_text,TableFile,EnergySettingAlt,OptTxt,pin);
 
+        E_Old = E_New;
         E_New = GrabEnergyFinal(OptDir,FileBase);
         disp(['Geometry Optimized W.R.T. Atomic Positions. ' char(916) 'E = ' num2str(E_New-E,'%4.10f') ' kJ/mol']);
         Telap = datestr(seconds(toc(TotalTimer)),'HH:MM:SS');
@@ -907,7 +918,7 @@ for Index = 1:MaxCycles
         Coords_Data = textscan(Positions,'%*6c%6c%*6c%*6c%15.9f%15.9f%15.9f\n',...
             CryNew.(Structure).N,'Delimiter','','whitespace','');
 
-        % Get xyz coordinates of the asymmetric unit
+        % Get xyz coordinates of the unit cell
         idx = (CryNew.(Structure).N)/2 + 1;
         Met_XYZ = [Coords_Data{2}(1:idx-1) Coords_Data{3}(1:idx-1) Coords_Data{4}(1:idx-1)];
         Hal_XYZ = [Coords_Data{2}(idx:end) Coords_Data{3}(idx:end) Coords_Data{4}(idx:end)];
@@ -952,14 +963,15 @@ for Index = 1:MaxCycles
     end
 
     % Remove backup files
-    system(rm_command);
+    [~,~] = system(rm_command);
 
     Telap = datestr(seconds(toc(TotalTimer)),'HH:MM:SS');
     disp('************************************')
     disp(['Cycle ' num2str(Index) ' complete.'])
     disp(['Time Elapsed: ' Telap])
     disp('************************************')
-
+                        
+                        
     % Check if energy converged
     if (abs(E_New - E) < Energy_Tol) && ...
             (rms(Gradient) < Gradient_Tol_RMS) && ...
@@ -967,18 +979,23 @@ for Index = 1:MaxCycles
         % If all convergence criteria are met, end loop
         Cry = CryNew;
         disp(['Energy convergence reached after ' num2str(Index) ' cycles.' newline 'Final recalculation of energy...'])
-        OptimizationLoop(gmx,Cry,Salt,Structure,Model,Label,N_Supercell,...
-            Tempdir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
+        OptimizationLoop(gmx,Cry,Salt,Structure,Model_Scaled2,Label,N_Supercell,...
+            Maindir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
             Topology_text,TableFile,EnergySetting,OptTxt,pin);
 
         E = GrabEnergy(OptDir,FileBase);
-        system(rm_command);
+        [~,~] = system(rm_command);
         break
-    elseif abs(E_New - E) > 4e3 || (E_New < -3e3)
-        disp('Warning: Unphysical energy detected.')
+    % If energy converged but not gradients
+    elseif (abs(E_New - E) < Energy_Tol)
+        Gamma = Gamma_Init; % Re-initialize Gamma
+        E = E_New;
+        Cry = CryNew;
+    % Detect unphysical energy
+    elseif abs(E_New - E) > 4e3 || (E_New < E_Unphys)
+        disp(['Warning: Unphysical energy detected after ' num2str(Index) ' cycles.'])
         disp('Model may have local minimum at complete overlap of opposite charges.')
-        disp(['Energy convergence reached after ' num2str(Index) ' cycles.'])
-        disp('No non-trivial solution found.')
+        disp('No non-trivial solution possible. Removing output files.')
         system(del_command);
         skip_results = true;
         E = nan;
@@ -988,13 +1005,21 @@ for Index = 1:MaxCycles
         Cry.(Structure).FC_Metal(:) = nan;
         Cry.(Structure).FC_Halide(:) = nan;
         break
+    % Otherwise a normal decrease in energy
     elseif E_New < E
         Gamma = Gamma*Gamma_Multiplier;
         E = E_New;
         Cry = CryNew;
+    % If energy increases
     elseif E_New > E
-        disp('Warning: Total energy increased after geometry optimization of positions.')
-        disp('Possible bug?')
+        disp('Warning: Total energy increased after geometry optimization of atomic positions.')
+        disp('Convergence may not have been reached by GROMACS atomic position minimization step.')
+        disp('Reverting to intial fractional coordinates.');
+        Gamma = Gamma*Gamma_Multiplier;
+        E = E_Old;
+        CryNew.(Structure).FC_Metal = Cry.(Structure).FC_Metal;
+        CryNew.(Structure).FC_Halide = Cry.(Structure).FC_Halide;
+        Cry = CryNew;
     end
 
     if Index < MaxCycles
@@ -1002,17 +1027,22 @@ for Index = 1:MaxCycles
     else
         disp(['Convergence NOT reached after ' num2str(Index) ' cycles. Stopping.'])
     end                        
-end
+end             
 
 Telap = datestr(seconds(toc(TotalTimer)),'HH:MM:SS');
 disp(['Completed: ' Salt ' ' Structure ' ' Model ' Geometry Optimization. Time ' Telap])
 if ~skip_results
     disp(['Final Optimized Energy is ' num2str(E,'%4.10f') ' kJ/mol'])
-    disp(['Lattice Parameter a = ' num2str(Cry.(Structure).a,'%2.8f') ' ' char(0197) '.']);
-    disp(['Lattice Parameter b = ' num2str(Cry.(Structure).b,'%2.8f') ' ' char(0197) '.']);
-    disp(['Lattice Parameter c = ' num2str(Cry.(Structure).c,'%2.8f') ' ' char(0197) '.']);
-    disp(['Asym. Unit. Fractional Coordinates for ' Metal ': ' num2str(Cry.(Structure).FC_Metal(1,:),'%2.8f ')]);
-    disp(['Asym. Unit. Fractional Coordinates for ' Halide ': ' num2str(Cry.(Structure).FC_Halide(1,:),'%2.8f ')]);
+    for Didx = 1:N_DOF
+        disp(['Lattice Parameter ' DOF_txt{Didx} ' = ' ...
+            num2str(Cry.(Structure).(DOF{Didx}),'%2.8f') DOF_Units{Didx} '.']);
+    end
+    disp(['Fractional Coordinates for ' Metal ': ']);
+    disp(num2str(Cry.(Structure).FC_Metal(:,:),'%2.8f '))
+    disp(['Fractional Coordinates for ' Halide ': ']);
+    disp(num2str(Cry.(Structure).FC_Halide(:,:),'%2.8f '))
+    disp('Components of Final Gradient:')
+    disp(num2str(Gradient,'%5.4e  '))
 end
 
 %% Package output
@@ -1023,6 +1053,6 @@ Output_Array = [E Cry.(Structure).a Cry.(Structure).b Cry.(Structure).c ...
 try
     rmdir(Tempdir,'s');
 catch
-    disp(['Unable to delete temporary directory: ' Tempdir])
+    disp(['Warning - unable to delete temporary directory: ' Tempdir])
 end
 end
