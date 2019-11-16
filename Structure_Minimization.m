@@ -56,7 +56,8 @@ beta_TF = 0.1; % Reduce Gamma by this multiple when step size is too large (for 
 MaxLineTries = 10; % Maximum number of tries to compute lower energy point before decreasing numerical derivative step size
 Max_cycle_restarts = 10; % Maximum number of cycle restarts
 OptPos_SingleStage = true; % When true, optimize positions and lattice parameters simultaneously by numerical gradients
-E_Unphys = -3e3; % unphysical energy cutoff
+E_Unphys = -2.2e3; % unphysical energy cutoff
+DelE_Unphys = 200; % Unphysical gradient cutoff
 
 %% TOPOLOGY GLOBAL SETTINGS
 Top.gen_pairs = 'no'; % Automatically generate pairs
@@ -799,6 +800,22 @@ for Index = 1:MaxCycles
         [~,~] = system(rm_command);
     end
     
+    % Check for unphysical gradient
+    if max(abs(Gradient)) > DelE_Unphys
+        disp(['Warning: Unphysical energy gradient detected after ' num2str(Index) ' cycles.'])
+        disp('Model may have local minimum at complete overlap of opposite charges.')
+        disp('No non-trivial solution possible. Removing output files.')
+        system(del_command);
+        skip_results = true;
+        E = nan;
+        Cry.(Structure).a = nan;
+        Cry.(Structure).b = nan;
+        Cry.(Structure).c = nan;
+        Cry.(Structure).FC_Metal(:) = nan;
+        Cry.(Structure).FC_Halide(:) = nan;
+        break
+    end
+    
     % Move one step in direction of steepest descent
     for StepInd = 1:MaxLineTries
 
@@ -865,7 +882,7 @@ for Index = 1:MaxCycles
     end
     
     % Check for unphysical energy
-    if abs(E_New - E) > 4e3 || (E_New < E_Unphys)
+    if abs(E_New - E) > 4e3 || (E_New < E_Unphys) || (max(abs(Gradient)) > DelE_Unphys)
         disp(['Warning: Unphysical energy detected after ' num2str(Index) ' cycles.'])
         disp('Model may have local minimum at complete overlap of opposite charges.')
         disp('No non-trivial solution possible. Removing output files.')
@@ -992,7 +1009,7 @@ for Index = 1:MaxCycles
         E = E_New;
         Cry = CryNew;
     % Detect unphysical energy
-    elseif abs(E_New - E) > 4e3 || (E_New < E_Unphys)
+    elseif abs(E_New - E) > 4e3 || (E_New < E_Unphys) || (max(abs(Gradient)) > DelE_Unphys)
         disp(['Warning: Unphysical energy detected after ' num2str(Index) ' cycles.'])
         disp('Model may have local minimum at complete overlap of opposite charges.')
         disp('No non-trivial solution possible. Removing output files.')
