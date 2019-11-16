@@ -55,7 +55,7 @@ beta_JC = 0.5; % Reduce Gamma by this multiple when step size is too large (for 
 beta_TF = 0.1; % Reduce Gamma by this multiple when step size is too large (for TF models).
 MaxLineTries = 10; % Maximum number of tries to compute lower energy point before decreasing numerical derivative step size
 Max_cycle_restarts = 10; % Maximum number of cycle restarts
-OptPos_SingleStage = true; % When true, optimize positions and lattice parameters simultaneously by numerical gradients
+OptPos_SingleStage = false; % [Not implemented yet] When true, optimize positions and lattice parameters simultaneously by numerical gradients
 E_Unphys = -2.2e3; % unphysical energy cutoff
 DelE_Unphys = 200; % Unphysical gradient cutoff
 
@@ -82,6 +82,7 @@ MDP.rvdw_switch = 1.9; % nm. where to start switching the LJ potential. Only app
 MDP.Fourier_Spacing = 0.10; % nm. Default 0.12 nm. Grid dimensions in PME are controlled with fourierspacing
 MDP.PME_Order = 4; % Interpolation order for PME. 4 equals cubic interpolation (default).
 MDP.Ewald_rtol = 1e-7; %1e-7 Default (1e-5) The relative strength of the Ewald-shifted direct potential at rcoulomb. Decreasing this will give a more accurate direct sum, but then you need more wave vectors for the reciprocal sum.
+MDP.vdw_modifier = 'None'; % Potential-shift-Verlet, Potential-shift, None, Force-switch, Potential-switch
 
 %% GEOMETRY AND CALCULATION SETTINGS
 % Choose initial conditions if no minimum energy exists yet
@@ -220,7 +221,7 @@ Settings.Tab_StepSize = 0.0005; % Step size of tabulated potentials in nm
 
 %% Error checks
 % Parameter matrix input check
-[N_Par,M_Par] = size(Parameters);
+[Row_Par,Col_Par] = size(Parameters);
 
 % Model types
 if ~ischar(Model)
@@ -228,15 +229,15 @@ if ~ischar(Model)
 end
 
 if strcmp(Model,'JC')
-    if N_Par ~= 2 || (M_Par ~= 2 && M_Par ~= 3)
+    if Row_Par ~= 2 || (Col_Par ~= 2 && Col_Par ~= 3)
         error(['JC model parameter matrix must be 2 x 2 or 2 x 3. ' ...
-            'Current input matrix is ' num2str(N_Par) ' x ' num2str(M_Par)]);
+            'Current input matrix is ' num2str(Row_Par) ' x ' num2str(Col_Par)]);
     end
 elseif strcmp(Model,'TF')
     
-    if N_Par ~= 4 || M_Par ~= 3
+    if Row_Par ~= 4 || Col_Par ~= 3
         error(['TF model parameter matrix must be 4 x 3. ' ...
-            'Current input matrix is ' num2str(N_Par) ' x ' num2str(M_Par)]);
+            'Current input matrix is ' num2str(Row_Par) ' x ' num2str(Col_Par)]);
     end
 else
     error(['Unknown Input Model: ' Model])
@@ -526,6 +527,7 @@ if strcmp(Model,'TF')
 
     % Modify the MDP file
     MDP.Temp_Model = strrep(MDP.Temp_Model,'##VDWTYPE##',pad('user',18));
+    MDP.Temp_Model = strrep(MDP.Temp_Model,'##VDWMOD##',pad(MDP.vdw_modifier,18));
     MDP.Temp_Model = strrep(MDP.Temp_Model,'##CUTOFF##',pad('group',18));
     MDP.Temp_Model = regexprep(MDP.Temp_Model,'ewald-rtol-lj.+?\n','');
     MDP.Temp_Model = regexprep(MDP.Temp_Model,'lj-pme-comb-rule.+?\n','');
@@ -535,7 +537,7 @@ if strcmp(Model,'TF')
     EnergySetting = '1 2 3 4 28 29 30 31 32 33 0';
 
     % JC model defined as parameters in GROMACS (faster)
-elseif strcmp(Model,'JC') && ~any(Parameters(:) <= 0) && M_Par == 2
+elseif strcmp(Model,'JC') && ~any(Parameters(:) <= 0) && Col_Par == 2
 
     beta = beta_JC;
 
@@ -567,6 +569,7 @@ elseif strcmp(Model,'JC') && ~any(Parameters(:) <= 0) && M_Par == 2
 
     % Modify the MDP file
     MDP.Temp_Model = strrep(MDP.Temp_Model,'##VDWTYPE##',pad(MDP.VDWType,18));
+    MDP.Temp_Model = strrep(MDP.Temp_Model,'##VDWMOD##',pad(MDP.vdw_modifier,18));
     MDP.Temp_Model = strrep(MDP.Temp_Model,'##CUTOFF##',pad(MDP.CutOffScheme,18));
     MDP.Temp_Model = regexprep(MDP.Temp_Model,'energygrp-table.+?\n','');
     MDP.Temp_Model = regexprep(MDP.Temp_Model,'ewald-rtol-lj.+?\n','');
@@ -583,7 +586,7 @@ elseif strcmp(Model,'JC') && ~any(Parameters(:) <= 0) && M_Par == 2
     EnergySetting = '1 2 3 4 28 29 30 31 32 33 0';
 
     % JC model defined as table in GROMACS (slower)
-elseif strcmp(Model,'JC') && (any(Parameters <= 0,'all') || M_Par == 3)
+elseif strcmp(Model,'JC') && (any(Parameters <= 0,'all') || Col_Par == 3)
 
     beta = beta_JC;
 
@@ -625,6 +628,7 @@ elseif strcmp(Model,'JC') && (any(Parameters <= 0,'all') || M_Par == 3)
 
     % Modify the MDP file
     MDP.Temp_Model = strrep(MDP.Temp_Model,'##VDWTYPE##',pad('user',18));
+    MDP.Temp_Model = strrep(MDP.Temp_Model,'##VDWMOD##',pad(MDP.vdw_modifier,18));
     MDP.Temp_Model = strrep(MDP.Temp_Model,'##CUTOFF##',pad('group',18));
     MDP.Temp_Model = regexprep(MDP.Temp_Model,'ewald-rtol-lj.+?\n','');
     MDP.Temp_Model = regexprep(MDP.Temp_Model,'lj-pme-comb-rule.+?\n','');
@@ -800,10 +804,11 @@ for Index = 1:MaxCycles
         [~,~] = system(rm_command);
     end
     
-    % Check for unphysical gradient
-    if max(abs(Gradient)) > DelE_Unphys
+    % Check for unphysical negative gradient
+    if max(Gradient) > DelE_Unphys
         disp(['Warning: Unphysical energy gradient detected after ' num2str(Index) ' cycles.'])
         disp('Model may have local minimum at complete overlap of opposite charges.')
+        disp('Othterwise poor initial conditions may cause this.')
         disp('No non-trivial solution possible. Removing output files.')
         system(del_command);
         skip_results = true;
@@ -882,9 +887,10 @@ for Index = 1:MaxCycles
     end
     
     % Check for unphysical energy
-    if abs(E_New - E) > 4e3 || (E_New < E_Unphys) || (max(abs(Gradient)) > DelE_Unphys)
+    if abs(E_New - E) > 4e3 || (E_New < E_Unphys) || (max(Gradient) > DelE_Unphys)
         disp(['Warning: Unphysical energy detected after ' num2str(Index) ' cycles.'])
         disp('Model may have local minimum at complete overlap of opposite charges.')
+        disp('Othterwise poor initial conditions may cause this.')
         disp('No non-trivial solution possible. Removing output files.')
         system(del_command);
         skip_results = true;
@@ -1009,9 +1015,10 @@ for Index = 1:MaxCycles
         E = E_New;
         Cry = CryNew;
     % Detect unphysical energy
-    elseif abs(E_New - E) > 4e3 || (E_New < E_Unphys) || (max(abs(Gradient)) > DelE_Unphys)
+    elseif abs(E_New - E) > 4e3 || (E_New < E_Unphys) || (max(Gradient) > DelE_Unphys)
         disp(['Warning: Unphysical energy detected after ' num2str(Index) ' cycles.'])
         disp('Model may have local minimum at complete overlap of opposite charges.')
+        disp('Othterwise poor initial conditions may cause this.')
         disp('No non-trivial solution possible. Removing output files.')
         system(del_command);
         skip_results = true;

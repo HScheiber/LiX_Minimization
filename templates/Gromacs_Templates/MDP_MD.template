@@ -11,6 +11,7 @@ nstxout-compressed       = ##POSOUTCOMP##; Number of steps that elapse between w
 ; Parameters for run
 coulombtype              = ##COULOMB##; Define how the coulombic interaction is calculated
 vdwtype                  = ##VDWTYPE##; Define the type of van der waals potential used
+vdw-modifier             = ##VDWMOD##; Define the behaviour of the vdw potential at the cutoff
 nsteps                   = ##NSTEPS##; How many MD steps are performed (10 ns)
 integrator               = ##INTEGR##; What type of calculation is run
 dt                       = ##TIMEST##; Time step (ps)

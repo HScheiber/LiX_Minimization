@@ -1,6 +1,7 @@
 ; ##MET####HAL## mdp file
 coulombtype              = ##COULOMB##; Define how the coulombic interaction is calculated
 vdwtype                  = ##VDWTYPE##; Define the type of van der waals potential used
+vdw-modifier             = ##VDWMOD##; Define the behaviour of the vdw potential at the cutoff
 nsteps                   = ##NSTEPS##; How many minimization steps are performed
 integrator               = ##INTEGR##; What type of calculation is run
 dt                       = ##TIMEST##; Time step (ps)
