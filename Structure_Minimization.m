@@ -82,7 +82,7 @@ MDP.rvdw_switch = 1.9; % nm. where to start switching the LJ potential. Only app
 MDP.Fourier_Spacing = 0.10; % nm. Default 0.12 nm. Grid dimensions in PME are controlled with fourierspacing
 MDP.PME_Order = 4; % Interpolation order for PME. 4 equals cubic interpolation (default).
 MDP.Ewald_rtol = 1e-7; %1e-7 Default (1e-5) The relative strength of the Ewald-shifted direct potential at rcoulomb. Decreasing this will give a more accurate direct sum, but then you need more wave vectors for the reciprocal sum.
-MDP.vdw_modifier = 'None'; % Potential-shift-Verlet, Potential-shift, None, Force-switch, Potential-switch
+MDP.vdw_modifier = 'Potential-shift'; % Potential-shift-Verlet, Potential-shift, None, Force-switch, Potential-switch
 
 %% GEOMETRY AND CALCULATION SETTINGS
 % Choose initial conditions if no minimum energy exists yet
@@ -207,7 +207,7 @@ Settings.nMols_per_Task = -1; % -1 to fix the number of cores
 Settings.nCores = 1; % Number of cores to request for calculation (currently limited to 1)
 Settings.nTasks_per_Node = 1; % Cores per node to request
 Settings.Mempernode = '-1'; % Memory request for server (default = '-1', max per core = '0', use '3G' for Cedar)
-Settings.Table_Length = 8; % How far should non-automatic tables extend in nm
+Settings.Table_Length = max([MDP.RList_Cutoff MDP.RCoulomb_Cutoff MDP.RVDW_Cutoff])+1.01; % How far should non-automatic tables extend in nm
 Settings.Delete_MDPout = true; % Automatically delete MDP out files if true
 Settings.Delete_MDlog = true; % Delete log files if true
 Settings.Delete_ConfOut = false; % Delete the output configuration if true
@@ -505,7 +505,8 @@ if strcmp(Model,'TF')
 
     % Generate tables of the TF potential
     [TF_U_PM, TF_U_PP, TF_U_MM] = TF_Potential_Generator(0,...
-        Settings.Table_Length,Settings.Tab_StepSize,Salt,Parameters,false);
+        Settings.Table_Length,Settings.Tab_StepSize,Salt,Parameters,false,...
+        MDP.vdw_modifier,MDP.RVDW_Cutoff);
 
     TableName = [Salt '_' Model '_Table'];
     TableFile = fullfile(Current_Directory,[TableName '.xvg']);
@@ -606,7 +607,8 @@ elseif strcmp(Model,'JC') && (any(Parameters <= 0,'all') || Col_Par == 3)
 
     % Generate tables of the JC potential
     [JC_U_PM, JC_U_PP, JC_U_MM] = JC_Potential_Generator(0,...
-        Settings.Table_Length,Settings.Tab_StepSize,Salt,Parameters,false);            
+        Settings.Table_Length,Settings.Tab_StepSize,Salt,Parameters,false,...
+        MDP.vdw_modifier,MDP.RVDW_Cutoff);            
 
     TableName = [Salt '_' Model '_Table'];
     TableFile = fullfile(Current_Directory,[TableName '.xvg']);

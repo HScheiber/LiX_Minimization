@@ -6,7 +6,7 @@
 % OUTPUT units are: Energy = kJ/mol, length = nm
 % These units are used in GROMACS by default.
 function [U_PM_out, U_PP_out, U_MM_out] = JC_Potential_Generator(Startpoint,...
-    Endpoint,Spacing,Salt,Parameters,plotswitch)
+    Endpoint,Spacing,Salt,Parameters,plotswitch,vdw_modifier,RVDW_Cutoff)
 
 %% Conversion factors and fundamental constants
 nm_per_m = 1e+9; % nm per m
@@ -74,6 +74,16 @@ U_MetHal.df = 1./(r.^2);% Electrostatics function
 U_MetHal.dg = - B_PM.*6./(r.^7); % Dispersion
 U_MetHal.dh = + A_PM.*12./(r.^13);% Short range repulsion
 
+if contains(vdw_modifier,'potential-shift','IgnoreCase',true)
+    EVDW_Cutoff = A_PM./(RVDW_Cutoff.^12) ...
+    - B_PM./(RVDW_Cutoff.^6);
+    
+    % Shift by the dispersion energy at vdw cutoff radius. only affects one
+    % energy component, not derivatives (i.e. forces)
+    U_MetHal.Total = U_MetHal.Total - EVDW_Cutoff;
+    U_MetHal.g = U_MetHal.g - EVDW_Cutoff;
+end
+
 % remove infinities
 U_MetHal = Remove_Infinities(U_MetHal);
 
@@ -99,6 +109,16 @@ U_MetMet.df = 1./(r.^2);% Electrostatics function
 U_MetMet.dg = - B_PP.*6./(r.^7); % Dispersion
 U_MetMet.dh = + A_PP.*12./(r.^13);% Short range repulsion
 
+if contains(vdw_modifier,'potential-shift','IgnoreCase',true)
+    EVDW_Cutoff = A_PP./(RVDW_Cutoff.^12) ...
+    - B_PP./(RVDW_Cutoff.^6);
+    
+    % Shift by the dispersion energy at vdw cutoff radius. only affects one
+    % energy component, not derivatives (i.e. forces)
+    U_MetMet.Total = U_MetMet.Total - EVDW_Cutoff;
+    U_MetMet.g = U_MetMet.g - EVDW_Cutoff;
+end
+
 % remove infinities
 U_MetMet = Remove_Infinities(U_MetMet);
 
@@ -123,6 +143,16 @@ U_HalHal.dTotal = -k_0*(e_c^2)*q.(Halide)*q.(Halide)./(r.^2) ...
 U_HalHal.df = 1./(r.^2);% Electrostatics function
 U_HalHal.dg = - B_MM.*6./(r.^7); % Dispersion
 U_HalHal.dh = + A_MM.*12./(r.^13);% Short range repulsion
+
+if contains(vdw_modifier,'potential-shift','IgnoreCase',true)
+    EVDW_Cutoff = A_MM./(RVDW_Cutoff.^12) ...
+    - B_MM./(RVDW_Cutoff.^6);
+    
+    % Shift by the dispersion energy at vdw cutoff radius. only affects one
+    % energy component, not derivatives (i.e. forces)
+    U_HalHal.Total = U_HalHal.Total - EVDW_Cutoff;
+    U_HalHal.g = U_HalHal.g - EVDW_Cutoff;
+end
 
 % remove infinities
 U_HalHal = Remove_Infinities(U_HalHal);

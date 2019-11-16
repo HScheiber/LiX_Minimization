@@ -5,7 +5,8 @@
 % INPUT parameters units are: Energy = kJ/mol, length = nm
 % OUTPUT units are: Energy = kJ/mol, length = nm
 % These units are used in GROMACS by default.
-function [U_PM_out, U_PP_out, U_MM_out] = TF_Potential_Generator(Startpoint,Endpoint,Spacing,Salt,Parameters,plotswitch)
+function [U_PM_out, U_PP_out, U_MM_out] = TF_Potential_Generator(Startpoint,...
+    Endpoint,Spacing,Salt,Parameters,plotswitch,vdw_modifier,RVDW_Cutoff)
 
 %% Conversion factors and fundamental constants
 nm_per_m = 1e+9; % nm per m
@@ -73,6 +74,17 @@ U_MetHal.df = 1./(r.^2);% Electrostatics function -df(r)/dr
 U_MetHal.dg = - 6.*C.PM./(r.^7) - 8.*D.PM./(r.^9) ; % Dispersion -dg(r)/dr
 U_MetHal.dh = alpha.PM*B.PM*exp(-alpha.PM.*r);% Short range repulsion -dh(r)/dr
 
+if contains(vdw_modifier,'potential-shift','IgnoreCase',true)
+    EVDW_Cutoff = B.PM*exp(-alpha.PM.*RVDW_Cutoff) ...
+    - C.PM./(RVDW_Cutoff.^6) ...
+    - D.PM./(RVDW_Cutoff.^8);
+    
+    % Shift by the dispersion energy at vdw cutoff radius. only affects one
+    % energy component, not derivatives (i.e. forces)
+    U_MetHal.Total = U_MetHal.Total - EVDW_Cutoff;
+    U_MetHal.g = U_MetHal.g - EVDW_Cutoff;
+end
+
 % Remove infinities (replace with zero)
 U_MetHal = Remove_Infinities(U_MetHal);
 
@@ -100,6 +112,17 @@ U_MetMet.df = 1./(r.^2); % Electrostatics function f(r)
 U_MetMet.dg = - 6.*C.PP./(r.^7) - 8.*D.PP./(r.^9); % Dispersion g(r)
 U_MetMet.dh = alpha.PP*B.PP*exp(-alpha.PP.*r); % Short range repulsion
 
+if contains(vdw_modifier,'potential-shift','IgnoreCase',true)
+    EVDW_Cutoff = B.PP*exp(-alpha.PP.*RVDW_Cutoff) ...
+    - C.PP./(RVDW_Cutoff.^6) ...
+    - D.PP./(RVDW_Cutoff.^8);
+    
+    % Shift by the dispersion energy at vdw cutoff radius. only affects one
+    % energy component, not derivatives (i.e. forces)
+    U_MetMet.Total = U_MetMet.Total - EVDW_Cutoff;
+    U_MetMet.g = U_MetMet.g - EVDW_Cutoff;
+end
+
 % Remove infinities (replace with zero)
 U_MetMet = Remove_Infinities(U_MetMet);
 
@@ -125,6 +148,17 @@ U_HalHal.dTotal = -k_0*(e_c^2)*q.(Halide).*q.(Halide)./(r.^2)...
 U_HalHal.df = 1./(r.^2); % Electrostatics function f(r)
 U_HalHal.dg = - 6.*C.MM./(r.^7) - 8.*D.MM./(r.^9); % Dispersion g(r)
 U_HalHal.dh = alpha.MM*B.MM*exp(-alpha.MM.*r); % Short range repulsion
+
+if contains(vdw_modifier,'potential-shift','IgnoreCase',true)
+    EVDW_Cutoff = B.MM*exp(-alpha.MM.*RVDW_Cutoff) ...
+    - C.MM./(RVDW_Cutoff.^6)...
+    - D.MM./(RVDW_Cutoff.^8);
+    
+    % Shift by the dispersion energy at vdw cutoff radius. only affects one
+    % energy component, not derivatives (i.e. forces)
+    U_HalHal.Total = U_HalHal.Total - EVDW_Cutoff;
+    U_HalHal.g = U_HalHal.g - EVDW_Cutoff;
+end
 
 % remove infinities
 U_HalHal = Remove_Infinities(U_HalHal);
@@ -170,11 +204,6 @@ if plotswitch
     hline.LineWidth = lw-1;
     hline.LineStyle = '--';
     leg1 = legend([h{:}],{['TF - ' Salt] ['TF - ' Metal Metal] ['TF - ' Halide Halide]});
-    %leg1 = legend([h{:}],{['TF - ' Salt ' V(r)'] ['TF - ' Salt ' V''(r) Analytical'] ['TF - ' Salt ' V''(r) Numerical']});
-%     leg1 = legend([h{:}],{['TF - ' Salt ' $V(r)$'] ['TF - ' Salt ' $f(r)$'] ...
-%         ['TF - ' Salt ' $g(r)$'] ['TF - ' Salt ' $h(r)$'] ...
-%         ['TF - ' Salt ' $\frac{d V (r)}{d r}$'] ['TF - ' Salt ' $\frac{d g (r)}{d r}$'] ...
-%         ['TF - ' Salt ' $\frac{d h (r)}{d r}$'] ['TF - ' Salt ' $\frac{d h (r)}{d r}$']});
     leg1.Interpreter = 'latex';
 end
 
