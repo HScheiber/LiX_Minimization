@@ -5,7 +5,6 @@ function Output_Array = Structure_Minimization_Par(Salt,Model,Parameters,OptPos)
     Structures = {'Rocksalt' 'Wurtzite' 'Sphalerite' 'CsCl' 'NiAs' 'BetaBeO' 'FiveFive'};
     
     N = length(Structures);
-    Data_Array = cell(1,N);
     Output_Array = nan(N,10);
     
     % Create a unique filename based on the current time for the log file
