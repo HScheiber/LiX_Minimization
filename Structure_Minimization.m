@@ -730,7 +730,7 @@ for Index = 1:MaxCycles
     if E < E_Unphys
         disp(['Warning: Unphysical energy detected after ' num2str(Index) ' cycles.'])
         disp('Model may have local minimum at complete overlap of opposite charges.')
-        disp('No non-trivial solution possible. Removing output files.')
+        disp('Removing output files.')
         system(del_command);
         skip_results = true;
         E = nan;
@@ -809,7 +809,7 @@ for Index = 1:MaxCycles
         disp(['Warning: Unphysical energy gradient detected after ' num2str(Index) ' cycles.'])
         disp('Model may have local minimum at complete overlap of opposite charges.')
         disp('Othterwise poor initial conditions may cause this.')
-        disp('No non-trivial solution possible. Removing output files.')
+        disp('Removing output files.')
         system(del_command);
         skip_results = true;
         E = nan;
@@ -891,7 +891,7 @@ for Index = 1:MaxCycles
         disp(['Warning: Unphysical energy detected after ' num2str(Index) ' cycles.'])
         disp('Model may have local minimum at complete overlap of opposite charges.')
         disp('Othterwise poor initial conditions may cause this.')
-        disp('No non-trivial solution possible. Removing output files.')
+        disp('Removing output files.')
         system(del_command);
         skip_results = true;
         E = nan;
@@ -1019,7 +1019,7 @@ for Index = 1:MaxCycles
         disp(['Warning: Unphysical energy detected after ' num2str(Index) ' cycles.'])
         disp('Model may have local minimum at complete overlap of opposite charges.')
         disp('Othterwise poor initial conditions may cause this.')
-        disp('No non-trivial solution possible. Removing output files.')
+        disp('Removing output files.')
         system(del_command);
         skip_results = true;
         E = nan;
