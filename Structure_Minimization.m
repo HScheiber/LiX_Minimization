@@ -702,31 +702,31 @@ for Index = 1:MaxCycles
     if auto_h
         h = nuderst([Cry.(Structure).a Cry.(Structure).b Cry.(Structure).c ...
             Cry.(Structure).alpha Cry.(Structure).beta Cry.(Structure).gamma]);
+        
+        OptimizationLoop(gmx,Cry,Salt,Structure,Model,Label,N_Supercell,...
+            Tempdir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
+            Topology_text,TableFile,EnergySetting,OptTxt,pin);
+        E = GrabEnergy(OptDir,FileBase);
+
+        disp(['********************Cycle ' num2str(Index) ' Initial Conditions********************']);
+        for Didx = 1:N_DOF
+            disp(['Lattice Parameter ' DOF_txt{Didx} ' = ' ...
+                num2str(Cry.(Structure).(DOF{Didx}),'%2.8f') DOF_Units{Didx} '.' ...
+                ' Num. Der. Step Size: ' char(948) '(' DOF_txt{Didx} ') = ' ...
+                num2str(h(Didx),'%2.8f') DOF_Units{Didx} '.']);
+        end
+        disp(['Fractional Coordinates for ' Metal ': ']);
+        disp(num2str(Cry.(Structure).FC_Metal(:,:),'%2.8f '))
+        disp(['Fractional Coordinates for ' Halide ': ']);
+        disp(num2str(Cry.(Structure).FC_Halide(:,:),'%2.8f '))
+        disp(['Initial E = ' num2str(E,'%4.10f') ' kJ/mol']);
+        disp(['Step size coefficient: ' num2str(Gamma) ])
+        Telap = datestr(seconds(toc(TotalTimer)),'HH:MM:SS');
+        disp(['Time Elapsed: ' Telap])
+        disp('******************************************************************')
     else
         auto_h = true;
     end
-
-    OptimizationLoop(gmx,Cry,Salt,Structure,Model,Label,N_Supercell,...
-        Tempdir,MDP,Longest_Cutoff,Coordinate_text,Settings,...
-        Topology_text,TableFile,EnergySetting,OptTxt,pin);
-    E = GrabEnergy(OptDir,FileBase);
-
-    disp(['********************Cycle ' num2str(Index) ' Initial Conditions********************']);
-    for Didx = 1:N_DOF
-        disp(['Lattice Parameter ' DOF_txt{Didx} ' = ' ...
-            num2str(Cry.(Structure).(DOF{Didx}),'%2.8f') DOF_Units{Didx} '.' ...
-            ' Num. Der. Step Size: ' char(948) '(' DOF_txt{Didx} ') = ' ...
-            num2str(h(Didx),'%2.8f') DOF_Units{Didx} '.']);
-    end
-    disp(['Fractional Coordinates for ' Metal ': ']);
-    disp(num2str(Cry.(Structure).FC_Metal(:,:),'%2.8f '))
-    disp(['Fractional Coordinates for ' Halide ': ']);
-    disp(num2str(Cry.(Structure).FC_Halide(:,:),'%2.8f '))
-    disp(['Initial E = ' num2str(E,'%4.10f') ' kJ/mol']);
-    disp(['Step size coefficient: ' num2str(Gamma) ])
-    Telap = datestr(seconds(toc(TotalTimer)),'HH:MM:SS');
-    disp(['Time Elapsed: ' Telap])
-    disp('******************************************************************')
 
     % Check for unphysical energy
     if E < E_Unphys
@@ -773,9 +773,9 @@ for Index = 1:MaxCycles
         E_Minus = GrabEnergy(OptDir,FileBase);
 
         Telap = datestr(seconds(toc(TotalTimer)),'HH:MM:SS');
-        disp(['Finite step ' CurDOFtxt ' -' num2str(delta,'%2.2e') ...
+        disp(['Finite step ' CurDOFtxt ' -' num2str(delta,'%2.2E') ...
             CurDOFunit ' Calculated. ' char(916) 'E(' CurDOFtxt '-' char(948) ...
-            ') = ' num2str(E_Minus-E,'%+4.4e') ' kJ/mol. Time Elapsed: ' Telap]);
+            ') = ' num2str(E_Minus-E,'%+4.4E') ' kJ/mol. Time Elapsed: ' Telap]);
 
         % Get energy at plus step
         CryPlus = Cry;
@@ -797,14 +797,15 @@ for Index = 1:MaxCycles
         E_Plus = GrabEnergy(OptDir,FileBase);
 
         Telap = datestr(seconds(toc(TotalTimer)),'HH:MM:SS');
-        disp(['Finite step ' CurDOFtxt ' +' num2str(delta,'%2.2e') ...
+        disp(['Finite step ' CurDOFtxt ' +' num2str(delta,'%2.2E') ...
             CurDOFunit ' Calculated. ' char(916) 'E(' CurDOFtxt '+' char(948) ...
-            ') = ' num2str(E_Plus-E,'%+4.4e') ' kJ/mol. Time Elapsed: ' Telap]);
+            ') = ' num2str(E_Plus-E,'%+4.4E') ' kJ/mol. Time Elapsed: ' Telap]);
 
         % 3-Point Numerical derivative wrt current DOF
-        Gradient(Didx) = (1/(2*h(Didx)))*(-E_Minus + E_Plus);
+        Gradient(Didx) = (1/(2*delta))*(-E_Minus + E_Plus);
         [~,~] = system(rm_command);
     end
+    disp([char(8711) 'E = ' num2str(Gradient,'%5.4E  ') ' kJ/mol ' char(0197)])
     
     % Check for unphysical negative gradient
     if max(Gradient) > DelE_Unphys
@@ -820,6 +821,13 @@ for Index = 1:MaxCycles
         Cry.(Structure).c = nan;
         Cry.(Structure).FC_Metal(:) = nan;
         Cry.(Structure).FC_Halide(:) = nan;
+        break
+        % Check for convergence on cycle 1
+    elseif Index == 1 && (rms(Gradient) < Gradient_Tol_RMS) && ...
+            (max(abs(Gradient)) < Gradient_Tol_Max)
+        % If gradient convergence criteria are met, end loop
+        disp('Energy convergence reached on cycle 1 gradient test.')
+        [~,~] = system(rm_command);
         break
     end
     
@@ -866,7 +874,7 @@ for Index = 1:MaxCycles
         end
 
         if StepInd >= MaxLineTries
-            h = h./10;
+            h = max(h./10,eps*100); % dont go below eps
             Gamma = Gamma_Init;
             Restart_cycle = true;
             [~,~] = system(rm_command);
@@ -1084,7 +1092,7 @@ if ~skip_results
     disp(['Fractional Coordinates for ' Halide ': ']);
     disp(num2str(Cry.(Structure).FC_Halide(:,:),'%2.8f '))
     disp('Components of Final Gradient:')
-    disp(num2str(Gradient,'%5.4e  '))
+    disp(num2str(Gradient,'%5.4E  '))
 end
 
 %% Package output
