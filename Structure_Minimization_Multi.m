@@ -51,6 +51,7 @@ function Output_Array = Structure_Minimization_Multi(Salt,Structure,Model,Parame
 
     % Check that Parameters is 3D matrix
     [~,~,N] = size(Parameters);
+    Output_Array = nan(N,10);
     
     % Create a unique filename based on the current time for the log file
     filename = [char(datetime(now,'ConvertFrom','datenum','format','yyyy-MM-dd_HH.mm.ss')) ...
@@ -83,15 +84,15 @@ function Output_Array = Structure_Minimization_Multi(Salt,Structure,Model,Parame
     
     % Collect outputs and save diaries to single string variable
     Diary_Text = '';
-    Data_Array = cell(1,N);
     for idx = partitions
-        Data_Array{idx} = f(idx).OutputArguments{1};
+        Output_Array(idx,:) = f(idx).OutputArguments{1};
         Diary_Text = [Diary_Text f(idx).Diary newline newline]; %#ok<AGROW>
     end
     
     % Save diaries to text file    
     fid = fopen(filename,'wt');
-    fprintf(fid,Diary_Text');
+    encoded_str = unicode2native(Diary_Text, 'UTF-8');
+    fwrite(fid, encoded_str, 'uint8');
     fclose(fid);
     
     % Determine if wurtzite has converged to 5-5
@@ -122,9 +123,5 @@ function Output_Array = Structure_Minimization_Multi(Salt,Structure,Model,Parame
 %         end
 %     end
 
-    Output_Array = nan(N,10);
-    for idx = partitions
-        Output_Array(idx,:) = Data_Array{idx};
-    end
 
 end

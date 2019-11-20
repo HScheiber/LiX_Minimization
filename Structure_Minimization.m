@@ -645,7 +645,7 @@ disp(['Beginning ' Salt ' ' Structure ' ' Model ' Optimization...'])
 disp(['Model Chosen: ' Model])
 disp('Parameter input: ')
 for i = 1:size(Parameters,1)
-    disp(num2str(Parameters(i,:),'%2.4f '))
+    disp(num2str(Parameters(i,:),'%1.4E '))
 end
 
 % Update directory details
