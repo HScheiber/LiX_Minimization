@@ -850,7 +850,7 @@ for Index = 1:MaxCycles
             Topology_text,TableFile,EnergySetting,OptTxt,pin);
         E_New = GrabEnergy(OptDir,FileBase);
 
-        if E_New > E - alpha*Gamma*norm(Gradient)^2
+        if E_New > E - min(alpha*Gamma*norm(Gradient)^2,50)
             Gamma = beta*Gamma;
 
             Telap = datestr(seconds(toc(TotalTimer)),'HH:MM:SS');
