@@ -879,7 +879,23 @@ for Index = 1:MaxCycles
         if Cycle_restarts >= Max_cycle_restarts
             disp(['Unable to find lower energy point after ' num2str(Max_cycle_restarts) ' attempts.'])
             disp('Stopping here.')
-            disp(['Energy convergence reached after ' num2str(Index) ' cycles.'])
+            if (rms(Gradient) < Gradient_Tol_RMS) && (max(abs(Gradient)) < Gradient_Tol_Max)
+                disp('Gradient convergence criteria fulfilled.')
+                disp(['Energy convergence reached after ' num2str(Index) ' cycles.'])
+            else
+                disp('Gradient convergence criteria NOT fulfilled.')
+                disp(['Search haulted after ' num2str(Index) ' cycles.'])
+                disp('Check initial conditions. Poor initial conditions may cause this.')
+                disp('Removing output files.')
+                system(del_command);
+                skip_results = true;
+                E = nan;
+                Cry.(Structure).a = nan;
+                Cry.(Structure).b = nan;
+                Cry.(Structure).c = nan;
+                Cry.(Structure).FC_Metal(:) = nan;
+                Cry.(Structure).FC_Halide(:) = nan;
+            end
             break
         else
             auto_h = false;
