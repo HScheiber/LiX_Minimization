@@ -35,7 +35,7 @@
 % model, all alpha parameters (which correspond to repulsive wall steepness) are set equal for each salt.
 function Output_Array = Structure_Minimization(Salt,Structure,Model,Parameters,OptPos)
 %% Structure Settings
-Parallel_Mode = true; % If set to true, this will pin the GROMACS process to a single thread
+Parallel_Mode = false; % If set to true, this will pin the GROMACS process to a single thread
 Data_Types = 1; % Allowed data types for automatic search of initial conditions (0 = not optimized, 1 = cell optimized, 2 = full optimized, 3 = atom optimized only)
 Continue_if_no_IC = true; % When true, uses input initial conditions if none are found in data. When false, does not attempt calculation if no IC are in data.
 Find_Min_Params = true; % When true, finds lowest energy parameters for IC based on Data_Types. When false, uses input IC
@@ -201,12 +201,6 @@ Cry.Wurtzite.N = 4;
 Cry.Wurtzite.Label = 'W';
 
 %% ADDITIONAL SETTINGS
-Settings.Hours = 24; % Max time for job (hours)
-Settings.Mins = 0; % Max time for job (minutes)
-Settings.nMols_per_Task = -1; % -1 to fix the number of cores
-Settings.nCores = 1; % Number of cores to request for calculation (currently limited to 1)
-Settings.nTasks_per_Node = 1; % Cores per node to request
-Settings.Mempernode = '-1'; % Memory request for server (default = '-1', max per core = '0', use '3G' for Cedar)
 Settings.Table_Length = max([MDP.RList_Cutoff MDP.RCoulomb_Cutoff MDP.RVDW_Cutoff])+1.01; % How far should non-automatic tables extend in nm
 Settings.Delete_MDPout = true; % Automatically delete MDP out files if true
 Settings.Delete_MDlog = true; % Delete log files if true
@@ -913,7 +907,7 @@ for Index = 1:MaxCycles
     end
     
     % Check for unphysical energy
-    if abs(E_New - E) > 4e3 || (E_New < E_Unphys) || (max(Gradient) > DelE_Unphys)
+    if (E_New < E_Unphys) || (max(Gradient) > DelE_Unphys)
         disp(['Warning: Unphysical energy detected after ' num2str(Index) ' cycles.'])
         disp('Model may have local minimum at complete overlap of opposite charges.')
         disp('Othterwise poor initial conditions may cause this.')
@@ -1036,12 +1030,12 @@ for Index = 1:MaxCycles
         [~,~] = system(rm_command);
         break
     % If energy converged but not gradients
-    elseif (abs(E_New - E) < Energy_Tol)
+    elseif abs(E_New - E) < Energy_Tol
         Gamma = Gamma_Init; % Re-initialize Gamma
         E = E_New;
         Cry = CryNew;
     % Detect unphysical energy
-    elseif abs(E_New - E) > 4e3 || (E_New < E_Unphys) || (max(Gradient) > DelE_Unphys)
+    elseif (E_New < E_Unphys) || (max(Gradient) > DelE_Unphys)
         disp(['Warning: Unphysical energy detected after ' num2str(Index) ' cycles.'])
         disp('Model may have local minimum at complete overlap of opposite charges.')
         disp('Othterwise poor initial conditions may cause this.')
