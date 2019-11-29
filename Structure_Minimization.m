@@ -35,7 +35,7 @@
 % model, all alpha parameters (which correspond to repulsive wall steepness) are set equal for each salt.
 function Output_Array = Structure_Minimization(Salt,Structure,Model,Parameters,OptPos)
 %% Structure Settings
-Parallel_Mode = false; % If set to true, this will pin the GROMACS process to a single thread
+Parallel_Mode = true; % If set to true, this will pin the GROMACS process to a single thread
 Data_Types = 1; % Allowed data types for automatic search of initial conditions (0 = not optimized, 1 = cell optimized, 2 = full optimized, 3 = atom optimized only)
 Continue_if_no_IC = true; % When true, uses input initial conditions if none are found in data. When false, does not attempt calculation if no IC are in data.
 Find_Min_Params = true; % When true, finds lowest energy parameters for IC based on Data_Types. When false, uses input IC
