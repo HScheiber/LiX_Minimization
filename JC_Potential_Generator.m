@@ -16,7 +16,7 @@ NA = 6.0221409e23; % Molecules per mole
 e_c = 1.60217662e-19; % Elementary charge in Coulombs
 epsilon_0 = (8.854187817620e-12)*1000/(nm_per_m*NA); % Vacuum Permittivity C^2 mol kJ^-1 nm^-1
 k_0 = 1/(4*pi*epsilon_0); % Coulomb constant in kJ nm C^-2 mol^-1
-r_d = 0.10; % If close-range dispersion damping is on, damp at this distance
+r_d = 0.10; % If close-range dispersion damping is on, this is the value of the sigmoid's midpoint
 b = 150; % sigmoid "steepness" for damping
 
 [Metal,Halide] = Separate_Metal_Halide(Salt);
