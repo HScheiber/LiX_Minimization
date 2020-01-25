@@ -1,10 +1,18 @@
 %% INFO ABOUT INPUTS
 % Models is a string variable. One of 'JC' or 'TF'. Sets the mathematical form of the model to use.
+%
 % Salts is either a string or cell array. Can be any of: 'LiF' 'LiCl' 'LiBr' 'LiI' 'NaCl'
+%
 % Structures is either a string or cell array. Can be any of: 'Rocksalt' 'Wurtzite' 'Sphalerite' 'CsCl' 'NiAs' 'BetaBeO' 'FiveFive'
+%
 % OptPos is a Boolean. If true, then the optimization algorithm optimizes
 % for lattice parameters AND fractional coordinates. If false, the
 % algorithm only optimizes for lattice parameters.
+%
+% CRDamping is a Boolean, short for Close-Range Damping. If true, this adds
+% a damping function for the potential at close range. NOTE that using this
+% will force the potential to be defined by a table in GROMACS, which runs
+% the software somewhat slower than otherwise.
 %% Parameters is and N x M matrix of floats, N and M depend on the chosen model. 
 % For JC model: Parameters are contained in either a [2 x 2] OR [2 x 3] array.
 % For TF model: Parameters are contained in a [4 x 3] array.
@@ -33,7 +41,7 @@
 %
 % No combining rules are defined for the TF model. Note that in original TF
 % model, all alpha parameters (which correspond to repulsive wall steepness) are set equal for each salt.
-function Output_Array = Structure_Minimization(Salt,Structure,Model,Parameters,OptPos)
+function Output_Array = Structure_Minimization(Salt,Structure,Model,Parameters,OptPos,CRDamping)
 %% Structure Settings
 Parallel_Mode = true; % If set to true, this will pin the GROMACS process to a single thread
 Data_Types = 1; % Allowed data types for automatic search of initial conditions (0 = not optimized, 1 = cell optimized, 2 = full optimized, 3 = atom optimized only)
@@ -56,8 +64,8 @@ beta_TF = 0.1; % Reduce Gamma by this multiple when step size is too large (for 
 MaxLineTries = 10; % Maximum number of tries to compute lower energy point before decreasing numerical derivative step size
 Max_cycle_restarts = 10; % Maximum number of cycle restarts
 OptPos_SingleStage = false; % [Not implemented yet] When true, optimize positions and lattice parameters simultaneously by numerical gradients
-E_Unphys = -2.2e3; % unphysical energy cutoff
-DelE_Unphys = 200; % Unphysical gradient cutoff
+E_Unphys = -Inf; %-2.2e3; % unphysical energy cutoff
+DelE_Unphys = Inf; %200; % Unphysical gradient cutoff
 
 %% TOPOLOGY GLOBAL SETTINGS
 Top.gen_pairs = 'no'; % Automatically generate pairs
@@ -500,7 +508,7 @@ if strcmp(Model,'TF')
     % Generate tables of the TF potential
     [TF_U_PM, TF_U_PP, TF_U_MM] = TF_Potential_Generator(0,...
         Settings.Table_Length,Settings.Tab_StepSize,Salt,Parameters,false,...
-        MDP.vdw_modifier,MDP.RVDW_Cutoff);
+        MDP.vdw_modifier,MDP.RVDW_Cutoff,CRDamping);
 
     TableName = [Salt '_' Model '_Table'];
     TableFile = fullfile(Current_Directory,[TableName '.xvg']);
@@ -532,7 +540,7 @@ if strcmp(Model,'TF')
     EnergySetting = '1 2 3 4 28 29 30 31 32 33 0';
 
     % JC model defined as parameters in GROMACS (faster)
-elseif strcmp(Model,'JC') && ~any(Parameters(:) <= 0) && Col_Par == 2
+elseif strcmp(Model,'JC') && ~any(Parameters(:) <= 0) && Col_Par == 2 && ~CRDamping
 
     beta = beta_JC;
 
@@ -581,8 +589,14 @@ elseif strcmp(Model,'JC') && ~any(Parameters(:) <= 0) && Col_Par == 2
     EnergySetting = '1 2 3 4 28 29 30 31 32 33 0';
 
     % JC model defined as table in GROMACS (slower)
-elseif strcmp(Model,'JC') && (any(Parameters <= 0,'all') || Col_Par == 3)
+elseif strcmp(Model,'JC') && (any(Parameters <= 0,'all') || Col_Par == 3 || CRDamping)
 
+    if Col_Par < 3
+        % Cross terms using Lorenz-Berthelot combining rules
+        Parameters(1,3) = (1/2)*(Parameters(1,1) + Parameters(1,2)); % Sigma MX
+        Parameters(2,3) = sqrt(Parameters(2,1)*Parameters(2,2)); % Epsilon MX
+    end
+    
     beta = beta_JC;
 
     % Define the function type as 1 (needed for custom functions)
@@ -602,7 +616,7 @@ elseif strcmp(Model,'JC') && (any(Parameters <= 0,'all') || Col_Par == 3)
     % Generate tables of the JC potential
     [JC_U_PM, JC_U_PP, JC_U_MM] = JC_Potential_Generator(0,...
         Settings.Table_Length,Settings.Tab_StepSize,Salt,Parameters,false,...
-        MDP.vdw_modifier,MDP.RVDW_Cutoff);            
+        MDP.vdw_modifier,MDP.RVDW_Cutoff,CRDamping);            
 
     TableName = [Salt '_' Model '_Table'];
     TableFile = fullfile(Current_Directory,[TableName '.xvg']);

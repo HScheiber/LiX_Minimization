@@ -5,8 +5,10 @@
 % INPUT parameters units are: Energy = kJ/mol, length = nm
 % OUTPUT units are: Energy = kJ/mol, length = nm
 % These units are used in GROMACS by default.
+% CRDamping is a boolean which adds a close range damping to the
+% attractive R^-6 term
 function [U_PM_out, U_PP_out, U_MM_out] = TF_Potential_Generator(Startpoint,...
-    Endpoint,Spacing,Salt,Parameters,plotswitch,vdw_modifier,RVDW_Cutoff)
+    Endpoint,Spacing,Salt,Parameters,plotswitch,vdw_modifier,RVDW_Cutoff,CRDamping)
 
 %% Conversion factors and fundamental constants
 nm_per_m = 1e+9; % nm per m
