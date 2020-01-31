@@ -3,7 +3,7 @@ Steepest descent minimization script which interfaces with GROMACS to produce op
 
 All scripts and files necessary to run the primary minimization script are included in the package.
 
-The main script is called “Structure_Minimization.m”. This takes as input:
+The main script is called “Structure_Minimization.m�?. This takes as input:
 `(Salt,Structure,Model,Parameters,OptPos)`
 
 
@@ -58,6 +58,7 @@ D_MM    D_XX    D_MX       (units: (kJ nm^8)/mol)
 
 No mixing rules are defined for the TF model.
 
+`CRDamping` Is a boolean that, when true, switches on a close-range logistic damping function on all attractive interactions (including opposite sign coulombic interactions). This prevents the code from creating unphysically tightly bound systems, which can cause the program run slow or crash. The damping function is designed not to affect the pair potential at physically relavent distances.
 
 The output from the Structure_Minimization script is a 1 x 10 numeric array which contains the following information in order:  
 `Output[1]  = Lattice energy in kJ/mol of formula units (i.e. energy per mole of ion pairs)`  
