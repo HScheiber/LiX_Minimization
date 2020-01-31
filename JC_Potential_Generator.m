@@ -62,9 +62,11 @@ r = Startpoint:Spacing:Endpoint;
 if CRDamping
     f_r = 1./(1 + exp(-b.*(r - r_d))); % sigmoid damping function
     df_r = (b.*exp(-b.*(r - r_d)))./((1 + exp(-b.*(r - r_d))).^2); % sigmoid damping function derivative
+    f_cutoff = 1./(1 + exp(-b.*(RVDW_Cutoff - r_d)));  % value of f at vdw cutoff
 else
 	f_r = 1; % No damping
     df_r = 0; % Damping derivative is zero
+    f_cutoff = 1; % value of f at vdw cutoff
 end
 
 %% Build PES: Plus-Minus
@@ -77,7 +79,7 @@ U_MetHal.Total = f_r.*k_0*(e_c^2)*q.(Metal)*q.(Halide)./r ...
 U_MetHal.f = 1./r; % Electrostatics function f(r)
 U_MetHal.g = -f_r.*B_PM./(r.^6); % Dispersion g(r)
 U_MetHal.h = A_PM./(r.^12) - k_0*(e_c^2)*q.(Metal)*q.(Halide)./(r) + ...
-    f_r.*k_0*(e_c^2)*q.(Metal)*q.(Halide)./(r);% Short range repulsion
+    f_r.*k_0*(e_c^2)*q.(Metal)*q.(Halide)./(r); % Short range repulsion
 
 % Plus - Minus total derivative
 U_MetHal.dTotal = -f_r.*k_0*(e_c^2)*q.(Metal)*q.(Halide)./(r.^2) ...
@@ -95,8 +97,10 @@ U_MetHal.dh = + A_PM.*12./(r.^13) - k_0*(e_c^2)*q.(Metal)*q.(Halide)./(r.^2) ...
 
 % Shift the Plus - Minus potential
 if contains(vdw_modifier,'potential-shift','IgnoreCase',true)
-    EVDW_Cutoff = A_PM./(RVDW_Cutoff.^12) ...
-    - B_PM./(RVDW_Cutoff.^6);
+    EVDW_Cutoff = A_PM/(RVDW_Cutoff^12) ...
+        - k_0*(e_c^2)*q.(Metal)*q.(Halide)/(RVDW_Cutoff) ...
+        + f_cutoff*k_0*(e_c^2)*q.(Metal)*q.(Halide)/(RVDW_Cutoff) ...
+        - f_cutoff*B_PM/(RVDW_Cutoff^6);
     
     % Shift by the dispersion energy at vdw cutoff radius. only affects one
     % energy component, not derivatives (i.e. forces)
@@ -132,7 +136,7 @@ U_MetMet.dh = + A_PP.*12./(r.^13);% Short range repulsion
 % Shift the Plus - Plus potential
 if contains(vdw_modifier,'potential-shift','IgnoreCase',true)
     EVDW_Cutoff = A_PP./(RVDW_Cutoff.^12) ...
-    - B_PP./(RVDW_Cutoff.^6);
+    - f_cutoff*B_PP./(RVDW_Cutoff.^6);
     
     % Shift by the dispersion energy at vdw cutoff radius. only affects one
     % energy component, not derivatives (i.e. forces)
@@ -168,7 +172,7 @@ U_HalHal.dh = + A_MM.*12./(r.^13);% Short range repulsion
 % Shift Minus - Minus potential
 if contains(vdw_modifier,'potential-shift','IgnoreCase',true)
     EVDW_Cutoff = A_MM./(RVDW_Cutoff.^12) ...
-    - B_MM./(RVDW_Cutoff.^6);
+    - f_cutoff*B_MM./(RVDW_Cutoff.^6);
     
     % Shift by the dispersion energy at vdw cutoff radius. only affects one
     % energy component, not derivatives (i.e. forces)

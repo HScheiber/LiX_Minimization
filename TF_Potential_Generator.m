@@ -62,9 +62,11 @@ D.PM = Parameters(4,3);
 if CRDamping
     f_r = 1./(1 + exp(-b.*(r - r_d))); % sigmoid damping function
     df_r = (b.*exp(-b.*(r - r_d)))./((1 + exp(-b.*(r - r_d))).^2); % sigmoid damping function derivative
+    f_cutoff = 1/(1 + exp(-b*(RVDW_Cutoff - r_d))); % damping function value at vdw cutoff
 else
     f_r = 1; % No damping
     df_r = 0; % Damping derivative is zero
+    f_cutoff = 1; % damping function value at vdw cutoff
 end
 
 % Plus - Minus total potential
@@ -98,9 +100,11 @@ U_MetHal.dh = alpha.PM*B.PM*exp(-alpha.PM.*r) - k_0*(e_c^2)*q.(Metal)*q.(Halide)
 
 % Shift the Plus - Minus potential
 if contains(vdw_modifier,'potential-shift','IgnoreCase',true)
-    EVDW_Cutoff = B.PM*exp(-alpha.PM.*RVDW_Cutoff) ...
-    - C.PM./(RVDW_Cutoff.^6) ...
-    - D.PM./(RVDW_Cutoff.^8);
+    EVDW_Cutoff = B.PM*exp(-alpha.PM*RVDW_Cutoff) ...
+        - k_0*(e_c^2)*q.(Metal)*q.(Halide)/(RVDW_Cutoff) ...
+        + f_cutoff*k_0*(e_c^2)*q.(Metal)*q.(Halide)/(RVDW_Cutoff) ...
+        - f_cutoff*C.PM/(RVDW_Cutoff^6) ...
+        - f_cutoff*D.PM/(RVDW_Cutoff^8);
     
     % Shift by the dispersion energy at vdw cutoff radius. only affects one
     % energy component, not derivatives (i.e. forces)
@@ -140,9 +144,9 @@ U_MetMet.dh = alpha.PP*B.PP*exp(-alpha.PP.*r); % Short range repulsion
 
 % Shift the Plus - Plus potential
 if contains(vdw_modifier,'potential-shift','IgnoreCase',true)
-    EVDW_Cutoff = B.PP*exp(-alpha.PP.*RVDW_Cutoff) ...
-    - C.PP./(RVDW_Cutoff.^6) ...
-    - D.PP./(RVDW_Cutoff.^8);
+    EVDW_Cutoff = B.PP*exp(-alpha.PP*RVDW_Cutoff) ...
+    - f_cutoff*C.PP/(RVDW_Cutoff^6) ...
+    - f_cutoff*D.PP/(RVDW_Cutoff^8);
     
     % Shift by the dispersion energy at vdw cutoff radius. only affects one
     % energy component, not derivatives (i.e. forces)
@@ -181,9 +185,9 @@ U_HalHal.dh = alpha.MM*B.MM*exp(-alpha.MM.*r); % Short range repulsion
 
 % Shift the Minus - Minus potential
 if contains(vdw_modifier,'potential-shift','IgnoreCase',true)
-    EVDW_Cutoff = B.MM*exp(-alpha.MM.*RVDW_Cutoff) ...
-    - C.MM./(RVDW_Cutoff.^6)...
-    - D.MM./(RVDW_Cutoff.^8);
+    EVDW_Cutoff = B.MM*exp(-alpha.MM*RVDW_Cutoff) ...
+    - f_cutoff*C.MM/(RVDW_Cutoff^6)...
+    - f_cutoff*D.MM/(RVDW_Cutoff^8);
     
     % Shift by the dispersion energy at vdw cutoff radius. only affects one
     % energy component, not derivatives (i.e. forces)
