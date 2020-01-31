@@ -17,6 +17,10 @@ e_c = 1.60217662e-19; % Elementary charge in Coulombs
 epsilon_0 = (8.854187817620e-12)*1000/(nm_per_m*NA); % Vacuum Permittivity C^2 mol kJ^-1 nm^-1
 k_0 = 1/(4*pi*epsilon_0); % Coulomb constant in kJ nm C^-2 mol^-1
 
+%% Close-Range Sigmoid Damping Parameters
+r_d = 0.10; % If close-range dispersion damping is on, this is the value of the sigmoid's midpoint
+b = 150; % sigmoid "steepness" for damping
+
 %% TF Parameter: q (charge)
 q.Li =  1; % atomic
 q.Na =  1; % atomic
@@ -52,30 +56,47 @@ D.PP = Parameters(4,1);
 D.MM = Parameters(4,2);
 D.PM = Parameters(4,3);
 
-%% Build Model Table: Plus-Minus (PM)
+%% Build PES: Plus-Minus (PM)
+
+% If Damping at close range
+if CRDamping
+    f_r = 1./(1 + exp(-b.*(r - r_d))); % sigmoid damping function
+    df_r = (b.*exp(-b.*(r - r_d)))./((1 + exp(-b.*(r - r_d))).^2); % sigmoid damping function derivative
+else
+    f_r = 1; % No damping
+    df_r = 0; % Damping derivative is zero
+end
 
 % Plus - Minus total potential
-U_MetHal.Total = k_0*(e_c^2)*q.(Metal)*q.(Halide)./(r) ...
+U_MetHal.Total = f_r.*k_0*(e_c^2)*q.(Metal)*q.(Halide)./(r) ...
     + B.PM*exp(-alpha.PM.*r) ...
-    - C.PM./(r.^6) ...
-    - D.PM./(r.^8);
+    - f_r.*C.PM./(r.^6) ...
+    - f_r.*D.PM./(r.^8);
 
-% Components of potential
+% Components of Plus - Minus potential
 U_MetHal.f = 1./r; % Electrostatics function f(r)
-U_MetHal.g = - C.PM./(r.^6) - D.PM./(r.^8); % Dispersion g(r)
-U_MetHal.h = B.PM*exp(-alpha.PM.*r);% Short range repulsion h(r)
+U_MetHal.g = - f_r.*C.PM./(r.^6) - f_r.*D.PM./(r.^8); % Dispersion g(r)
+U_MetHal.h = B.PM*exp(-alpha.PM.*r) - k_0*(e_c^2)*q.(Metal)*q.(Halide)./(r) ...
+    + f_r.*k_0*(e_c^2)*q.(Metal)*q.(Halide)./(r);% Short range repulsion h(r)
 
 % Plus - Minus total derivative
-U_MetHal.dTotal = -k_0*(e_c^2)*q.(Metal)*q.(Halide)./(r.^2) ...
+U_MetHal.dTotal = -f_r.*k_0*(e_c^2)*q.(Metal)*q.(Halide)./(r.^2) ...
+    + df_r.*k_0*(e_c^2)*q.(Metal)*q.(Halide)./(r) ...
     - alpha.PM*B.PM*exp(-alpha.PM.*r) ...
-    + 6.*C.PM./(r.^7) ...
-    + 8.*D.PM./(r.^9);
+    + f_r.*6.*C.PM./(r.^7) ...
+    - df_r.*C.PM./(r.^6) ...
+    + f_r.*8.*D.PM./(r.^9) ...
+    - df_r.*D.PM./(r.^8);
 
-% Components of derivative
+% Components of Plus - Minus forces
 U_MetHal.df = 1./(r.^2);% Electrostatics function -df(r)/dr
-U_MetHal.dg = - 6.*C.PM./(r.^7) - 8.*D.PM./(r.^9) ; % Dispersion -dg(r)/dr
-U_MetHal.dh = alpha.PM*B.PM*exp(-alpha.PM.*r);% Short range repulsion -dh(r)/dr
+U_MetHal.dg = - f_r.*6.*C.PM./(r.^7) + df_r.*C.PM./(r.^6) ...
+    - f_r.*8.*D.PM./(r.^9) + df_r.*D.PM./(r.^8); % Dispersion -dg(r)/dr
+U_MetHal.dh = alpha.PM*B.PM*exp(-alpha.PM.*r) - k_0*(e_c^2)*q.(Metal)*q.(Halide)./(r.^2) ...
+	+ f_r.*k_0*(e_c^2)*q.(Metal)*q.(Halide)./(r.^2) ...
+    - df_r.*k_0*(e_c^2)*q.(Metal)*q.(Halide)./(r);% Short range repulsion -dh(r)/dr
 
+% Shift the Plus - Minus potential
 if contains(vdw_modifier,'potential-shift','IgnoreCase',true)
     EVDW_Cutoff = B.PM*exp(-alpha.PM.*RVDW_Cutoff) ...
     - C.PM./(RVDW_Cutoff.^6) ...
@@ -90,30 +111,34 @@ end
 % Remove infinities (replace with zero)
 U_MetHal = Remove_Infinities(U_MetHal);
 
-%% Build Model Table: Plus - Plus (PP)
+%% Build PES: Plus - Plus (PP)
 
 % Plus - Plus Total Potential
 U_MetMet.Total = k_0*(e_c^2)*q.(Metal).*q.(Metal)./(r) ...
     + B.PP*exp(-alpha.PP.*r) ...
-    - C.PP./(r.^6) ...
-    - D.PP./(r.^8);
+    - f_r.*C.PP./(r.^6) ...
+    - f_r.*D.PP./(r.^8);
 
-% Components of potential
+% Components of Plus - Plus potential
 U_MetMet.f = 1./r; % Electrostatics function f(r)
-U_MetMet.g = - C.PP./(r.^6) - D.PP./(r.^8); % Dispersion g(r)
+U_MetMet.g = - f_r.*C.PP./(r.^6) - f_r.*D.PP./(r.^8); % Dispersion g(r)
 U_MetMet.h = B.PP*exp(-alpha.PP.*r); % Short range repulsion
 
 % Plus - Plus Total Derivative
 U_MetMet.dTotal = -k_0*(e_c^2)*q.(Metal).*q.(Metal)./(r.^2) ...
     - alpha.PP*B.PP*exp(-alpha.PP.*r)...
-    + 6.*C.PP./(r.^7) ...
-    + 8.*D.PP./(r.^9);
+    + f_r.*6.*C.PP./(r.^7) ...
+    - df_r.*C.PP./(r.^6) ...
+    + f_r.*8.*D.PP./(r.^9) ...
+    - df_r.*D.PP./(r.^8);
 
-% Components of derivative
+% Components of Plus - Plus forces
 U_MetMet.df = 1./(r.^2); % Electrostatics function f(r)
-U_MetMet.dg = - 6.*C.PP./(r.^7) - 8.*D.PP./(r.^9); % Dispersion g(r)
+U_MetMet.dg = - f_r.*6.*C.PP./(r.^7) + df_r.*C.PP./(r.^6) ...
+    - f_r.*8.*D.PP./(r.^9) + df_r.*D.PP./(r.^8); % Dispersion g(r)
 U_MetMet.dh = alpha.PP*B.PP*exp(-alpha.PP.*r); % Short range repulsion
 
+% Shift the Plus - Plus potential
 if contains(vdw_modifier,'potential-shift','IgnoreCase',true)
     EVDW_Cutoff = B.PP*exp(-alpha.PP.*RVDW_Cutoff) ...
     - C.PP./(RVDW_Cutoff.^6) ...
@@ -132,25 +157,29 @@ U_MetMet = Remove_Infinities(U_MetMet);
 % Minus - Minus Total Potential
 U_HalHal.Total = k_0*(e_c^2)*q.(Halide).*q.(Halide)./(r)...
     + B.MM*exp(-alpha.MM.*r) ...
-    - C.MM./(r.^6)...
-    - D.MM./(r.^8);
+    - f_r.*C.MM./(r.^6)...
+    - f_r.*D.MM./(r.^8);
 
-% Components of potential
+% Components of Minus - Minus potential
 U_HalHal.f = 1./r; % Electrostatics function f(r)
-U_HalHal.g = - C.MM./(r.^6) - D.MM./(r.^8); % Dispersion g(r)
+U_HalHal.g = - f_r.*C.MM./(r.^6) - f_r.*D.MM./(r.^8); % Dispersion g(r)
 U_HalHal.h = B.MM*exp(-alpha.MM.*r); % Short range repulsion
 
 % Minus - Minus Total Derivative
 U_HalHal.dTotal = -k_0*(e_c^2)*q.(Halide).*q.(Halide)./(r.^2)...
     - alpha.MM*B.MM*exp(-alpha.MM.*r)...
-    + 6.*C.MM./(r.^7)...
-    + 8.*D.MM./(r.^9);
+    + f_r.*6.*C.MM./(r.^7)...
+    - df_r.*C.MM./(r.^6) ...
+    + f_r.*8.*D.MM./(r.^9) ...
+    - df_r.*D.MM./(r.^8);
 
-% Components of derivative
+% Components of Minus - Minus forces
 U_HalHal.df = 1./(r.^2); % Electrostatics function f(r)
-U_HalHal.dg = - 6.*C.MM./(r.^7) - 8.*D.MM./(r.^9); % Dispersion g(r)
+U_HalHal.dg = - f_r.*6.*C.MM./(r.^7) + df_r.*C.MM./(r.^6) ...
+    - f_r.*8.*D.MM./(r.^9) + df_r.*D.MM./(r.^8); % Dispersion g(r)
 U_HalHal.dh = alpha.MM*B.MM*exp(-alpha.MM.*r); % Short range repulsion
 
+% Shift the Minus - Minus potential
 if contains(vdw_modifier,'potential-shift','IgnoreCase',true)
     EVDW_Cutoff = B.MM*exp(-alpha.MM.*RVDW_Cutoff) ...
     - C.MM./(RVDW_Cutoff.^6)...
@@ -165,7 +194,7 @@ end
 % remove infinities
 U_HalHal = Remove_Infinities(U_HalHal);
 
-%% Print
+%% Print Potentials
 PM = [r ; U_MetHal.f ; U_MetHal.df ; U_MetHal.g ; U_MetHal.dg ; U_MetHal.h ; U_MetHal.dh];
 U_PM_out = deblank( sprintf(['%16.10e   %16.10e %16.10e   %16.10e %16.10e   %16.10e %16.10e' newline],PM(:)) );
 
@@ -175,8 +204,9 @@ U_PP_out = deblank( sprintf(['%16.10e   %16.10e %16.10e   %16.10e %16.10e   %16.
 MM = [r ; U_HalHal.f ; U_HalHal.df ; U_HalHal.g ; U_HalHal.dg ; U_HalHal.h ; U_HalHal.dh];
 U_MM_out = deblank( sprintf(['%16.10e   %16.10e %16.10e   %16.10e %16.10e   %16.10e %16.10e' newline],MM(:)) );
 
-%% PLOT if plotswitch chosen
+%% Plot potentials if plotswitch chosen
 if plotswitch
+    figure;
     
     % Options
     lw=2;
@@ -185,9 +215,16 @@ if plotswitch
     h = cell(1,8);
     hold on
 
-    h{1} = plot(r,U_MetHal.Total,'Color','k','LineWidth',lw,'LineStyle','-');
-    h{2} = plot(r,U_MetMet.Total,'Color','r','LineWidth',lw,'LineStyle',':');
-    h{3} = plot(r,U_HalHal.Total,'Color','g','LineWidth',lw,'LineStyle','-.');
+    h{1} = plot(r,U_MetHal.Total,'Color','b','LineWidth',lw,'LineStyle','-');
+    h{2} = plot(r,U_MetMet.Total,'Color','r','LineWidth',lw,'LineStyle','-');
+    h{3} = plot(r,U_HalHal.Total,'Color','g','LineWidth',lw,'LineStyle','-');
+    
+%     dr = r(2) - r(1);
+%     r_dr = r(2:end) - dr/2;
+%     
+%     h{1} = plot(r_dr,diff(U_MetHal.Total)./dr,'Color','k','LineWidth',lw,'LineStyle',':');
+%     h{2} = plot(r_dr,diff(U_MetMet.Total)./dr,'Color','k','LineWidth',lw,'LineStyle',':');
+%     h{3} = plot(r_dr,diff(U_HalHal.Total)./dr,'Color','k','LineWidth',lw,'LineStyle',':');
 
     title(['Plot of TF Potentials for ' Salt],...
         'Interpreter','latex','fontsize',fs)
