@@ -13,6 +13,18 @@
 % a damping function for the potential at close range. NOTE that using this
 % will force the potential to be defined by a table in GROMACS, which runs
 % the software somewhat slower than otherwise.
+
+% C6Damping is an integer. Adds medium range dispersion-only damping:
+% BJ damping: https://www.chemie.uni-bonn.de/pctc/mulliken-center/software/dft-d3/man.pdf
+% Other damping functions: https://www.pamoc.it/kw_dfd.html
+% 0 = no (default) damping
+% 1 = BJ/rational damping (same as in D3(BJ), damps to a constant. Fairly
+% weak damping)
+% 2 = Tang Damping (Mid strength damping, damps to zero at r=0)
+% 3 = MMDRE Damping function (very weak damping)
+% 4 = PAMoC Damping function (weak damping)
+% 5 = EHFSK Damping function (strong damping)
+% 6 = WY damping function (strongest damping)
 %% Parameters is and N x M matrix of floats, N and M depend on the chosen model. 
 % For JC model: Parameters are contained in either a [2 x 2] OR [2 x 3] array.
 % For TF model: Parameters are contained in a [4 x 3] array.
@@ -41,7 +53,7 @@
 %
 % No combining rules are defined for the TF model. Note that in original TF
 % model, all alpha parameters (which correspond to repulsive wall steepness) are set equal for each salt.
-function Output_Array = Structure_Minimization(Salt,Structure,Model,Parameters,OptPos,CRDamping)
+function Output_Array = Structure_Minimization(Salt,Structure,Model,Parameters,OptPos,CRDamping,C6Damping)
 %% Structure Settings
 Parallel_Mode = true; % If set to true, this will pin the GROMACS process to a single thread
 Data_Types = 1; % Allowed data types for automatic search of initial conditions (0 = not optimized, 1 = cell optimized, 2 = full optimized, 3 = atom optimized only)
@@ -508,7 +520,7 @@ if strcmp(Model,'TF')
     % Generate tables of the TF potential
     [TF_U_PM, TF_U_PP, TF_U_MM] = TF_Potential_Generator(0,...
         Settings.Table_Length,Settings.Tab_StepSize,Salt,Parameters,false,...
-        MDP.vdw_modifier,MDP.RVDW_Cutoff,CRDamping);
+        MDP.vdw_modifier,MDP.RVDW_Cutoff,CRDamping,C6Damping);
 
     TableName = [Salt '_' Model '_Table'];
     TableFile = fullfile(Current_Directory,[TableName '.xvg']);
@@ -540,7 +552,7 @@ if strcmp(Model,'TF')
     EnergySetting = '1 2 3 4 28 29 30 31 32 33 0';
 
     % JC model defined as parameters in GROMACS (faster)
-elseif strcmp(Model,'JC') && ~any(Parameters(:) <= 0) && Col_Par == 2 && ~CRDamping
+elseif strcmp(Model,'JC') && ~any(Parameters(:) <= 0) && Col_Par == 2 && ~CRDamping && ~C6Damping
 
     beta = beta_JC;
 
@@ -589,7 +601,7 @@ elseif strcmp(Model,'JC') && ~any(Parameters(:) <= 0) && Col_Par == 2 && ~CRDamp
     EnergySetting = '1 2 3 4 28 29 30 31 32 33 0';
 
     % JC model defined as table in GROMACS (slower)
-elseif strcmp(Model,'JC') && (any(Parameters <= 0,'all') || Col_Par == 3 || CRDamping)
+elseif strcmp(Model,'JC') && (any(Parameters <= 0,'all') || Col_Par == 3 || CRDamping || C6Damping)
 
     if Col_Par < 3
         % Cross terms using Lorenz-Berthelot combining rules
@@ -616,7 +628,7 @@ elseif strcmp(Model,'JC') && (any(Parameters <= 0,'all') || Col_Par == 3 || CRDa
     % Generate tables of the JC potential
     [JC_U_PM, JC_U_PP, JC_U_MM] = JC_Potential_Generator(0,...
         Settings.Table_Length,Settings.Tab_StepSize,Salt,Parameters,false,...
-        MDP.vdw_modifier,MDP.RVDW_Cutoff,CRDamping);            
+        MDP.vdw_modifier,MDP.RVDW_Cutoff,CRDamping,C6Damping);            
 
     TableName = [Salt '_' Model '_Table'];
     TableFile = fullfile(Current_Directory,[TableName '.xvg']);

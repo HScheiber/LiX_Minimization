@@ -4,7 +4,7 @@ Steepest descent minimization script which interfaces with GROMACS to produce op
 All scripts and files necessary to run the primary minimization script are included in the package.
 
 The main script is called â€œStructure_Minimization.mâ€?. This takes as input:
-`(Salt,Structure,Model,Parameters,OptPos)`
+`(Salt,Structure,Model,Parameters,OptPos,CRDamping,C6Damping)`
 
 
 # INFO ABOUT INPUTS
@@ -59,6 +59,18 @@ D_MM    D_XX    D_MX       (units: (kJ nm^8)/mol)
 No mixing rules are defined for the TF model.
 
 `CRDamping` Is a boolean that, when true, switches on a close-range logistic damping function on all attractive interactions (including opposite sign coulombic interactions). This prevents the code from creating unphysically tightly bound systems, which can cause the program run slow or crash. The damping function is designed not to affect the pair potential at physically relavent distances.
+
+`C6Damping` Is an integer that damps close and medium range dispersion in a more physical way. The input can be any integer from 0 to 6. These correspond to:
+`0` = no damping (default)
+`1` = BJ/rational damping BJ damping: https://www.chemie.uni-bonn.de/pctc/mulliken-center/software/dft-d3/man.pdf This is the same as in D3(BJ), and damps to a constant value. Relatively weak damping overall.
+weak damping).
+`2` = Tang Damping. This is somewhat ill-defined with JC models since it relies on an exponential parameter only found in Buckingham type potentials (such as TF). Mid strength damping, damps to zero at r=0.
+`3` = MMDRE Damping function (very weak damping)
+`4` = PAMoC Damping function (weak damping)
+`5` = EHFSK Damping function (strong damping)
+`6` = WY damping function (strongest damping)
+For overview of damping functions 2-6: https://www.pamoc.it/kw_dfd.html
+
 
 The output from the Structure_Minimization script is a 1 x 10 numeric array which contains the following information in order:  
 `Output[1]  = Lattice energy in kJ/mol of formula units (i.e. energy per mole of ion pairs)`  

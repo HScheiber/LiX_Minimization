@@ -47,7 +47,7 @@
 %
 % No combining rules are defined for the TF model. Note that in original TF
 % model, all alpha parameters (which correspond to repulsive wall steepness) are set equal for each salt.
-function Output_Array = Structure_Minimization_Multi(Salt,Structure,Model,Parameters,OptPos)
+function Output_Array = Structure_Minimization_Multi(Salt,Structure,Model,Parameters,OptPos,CRDamping,C6Damping)
 
     % Check that Parameters is 3D matrix
     [~,~,N] = size(Parameters);
@@ -78,7 +78,8 @@ function Output_Array = Structure_Minimization_Multi(Salt,Structure,Model,Parame
     
     % Run in parallel with parfavel
     for idx = partitions
-        f(idx) = parfeval(ppool,@Structure_Minimization,1,Salt,Structure,Model,Parameters(:,:,idx),OptPos);
+        f(idx) = parfeval(ppool,@Structure_Minimization,1,Salt,Structure,Model,Parameters(:,:,idx),OptPos,...
+            CRDamping,C6Damping);
     end
     wait(f);
     
