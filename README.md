@@ -3,7 +3,7 @@ Steepest descent minimization script which interfaces with GROMACS to produce op
 
 All scripts and files necessary to run the primary minimization script are included in the package.
 
-The main script is called “Structure_Minimization.m�?. This takes as input:
+The main script is called `Structure_Minimization`. This takes as input:
 `(Salt,Structure,Model,Parameters,OptPos,CRDamping,C6Damping)`
 
 
@@ -87,8 +87,8 @@ The output from the Structure_Minimization script is a 1 x 10 numeric array whic
 This information (plus the input structure) is enough to uniquely determine the unit cell of any of the 7 candidate structures, as long as the space group of the unit cell is held fixed.
 It turns out that all 7 of the candidate structures have only a single ion pair within their asymmetric unit.
 
-I’ve done some ab initio calculations of these LiX structures in space group P1 (i.e. all cell angles and cell parameters are free to change) and optimized structures did not change significantly.
+I've done some ab initio calculations of these LiX structures in space group P1 (i.e. all cell angles and cell parameters are free to change) and optimized structures did not change significantly.
 
-Currently the output of this script is just what’s printed out when you run it. There is also data files that are produced, but I have set the script to delete these at the end. When I was collecting data I used to have a separate script that would scrape the data files and save them as matlab data structures.
+Currently the output of this script is just what's printed out when you run it. There is also data files that are produced, but I have set the script to delete these at the end. When I was collecting data I used to have a separate script that would scrape the data files and save them as matlab data structures.
 
 In the subdirectory called `DATA` is all of this previous data I've collected. This will be useful in generating reasonable initial conditions.
