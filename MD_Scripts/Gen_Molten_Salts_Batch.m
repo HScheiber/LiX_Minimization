@@ -733,6 +733,7 @@ for idx = 1:N
         MDP_Text = regexprep(MDP_Text,'tau-p +.+?\n','');
         MDP_Text = regexprep(MDP_Text,'compressibility +.+?\n','');
         MDP_Text = regexprep(MDP_Text,'ref-p +.+?\n','');
+        MDP_Text = regexprep(MDP_Text,'nstpcouple +.+?\n','');
 
     else
         % Update MDP template
