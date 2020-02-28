@@ -422,16 +422,16 @@ if plotswitch % For testing
     h = cell(1,8);
     hold on
 
-    h{1} = plot(r,-U_MetHal.dg,'Color','b','LineWidth',lw,'LineStyle','-');
-    h{2} = plot(r,-U_MetMet.dg,'Color','r','LineWidth',lw,'LineStyle','-');
-    h{3} = plot(r,-U_HalHal.dg,'Color','g','LineWidth',lw,'LineStyle','-');
+    h{1} = plot(r,U_MetHal.g,'Color','b','LineWidth',lw,'LineStyle','-');
+    h{2} = plot(r,U_MetMet.g,'Color','r','LineWidth',lw,'LineStyle','-');
+    h{3} = plot(r,U_HalHal.g,'Color','g','LineWidth',lw,'LineStyle','-');
 
-    dr = r(2) - r(1);
-    r_dr = r(2:end) - dr/2;
-    
-    h{4} = plot(r_dr,diff(U_MetHal.g)./dr,'Color','k','LineWidth',lw,'LineStyle',':');
-    h{5} = plot(r_dr,diff(U_MetMet.g)./dr,'Color','k','LineWidth',lw,'LineStyle',':');
-    h{6} = plot(r_dr,diff(U_HalHal.g)./dr,'Color','k','LineWidth',lw,'LineStyle',':');
+%     dr = r(2) - r(1);
+%     r_dr = r(2:end) - dr/2;
+%     
+%     h{4} = plot(r_dr,diff(U_MetHal.g)./dr,'Color','k','LineWidth',lw,'LineStyle',':');
+%     h{5} = plot(r_dr,diff(U_MetMet.g)./dr,'Color','k','LineWidth',lw,'LineStyle',':');
+%     h{6} = plot(r_dr,diff(U_HalHal.g)./dr,'Color','k','LineWidth',lw,'LineStyle',':');
     
     title(['Plot of JC Potentials for ' Salt],...
         'Interpreter','latex','fontsize',fs)
@@ -441,7 +441,7 @@ if plotswitch % For testing
     xlabel('r (nm)','fontsize',fs,'Interpreter','latex');
     ylabel('Pair Potential (kJ mol$^{-1}$)','fontsize',fs,'Interpreter','latex');
 
-    ylim([-900 1000]);
+    ylim([-100 50]);
     xlim([Startpoint Endpoint]);
 
     % Blank line
