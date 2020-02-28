@@ -52,6 +52,7 @@ end
 %% User settings
 CC_Username = 'scheiber'; % Compute Canada Username (used for graham, cedar, orcinus and beluga)
 CWL_Username = 'haydensc'; % CWL username (only used for sockeye);
+LiX_Directory = 'LiX_Minimization'; % location of directory
 
 %% Job Settings (any of these can be arrays)
 if ~Potential_Input
@@ -199,29 +200,29 @@ Longest_Cutoff = max([MDP_RList_Cutoff MDP_RCoulomb_Cutoff MDP_RVDW_Cutoff]);
 if ispc % for testing
     passlog = ' ^&^> ';
     Maindir = ['C:\Users\Hayden\Documents\Patey_Lab\' Project_Directory_Name];
-    home = 'C:\Users\Hayden\Documents\Patey_Lab\bin'; % windows laptop
+    home = ['C:\Users\Hayden\Documents\Patey_Lab\' LiX_Directory]; % windows laptop
     gmx = 'wsl source ~/.bashrc; gmx_d';
     sys = @(inp) system(inp); 
 elseif isunix
     passlog = ' &> ';
     if strcmpi(Server,'ced') || strcmpi(Server,'cdr') || strcmpi(Server,'sea') || strcmpi(Server,'pod')
         Maindir = ['/home/' CC_Username '/project/' Project_Directory_Name];
-        home = ['/home/' CC_Username '/bin']; % Cedar/Graham/orcinus
+        home = ['/home/' CC_Username filesep LiX_Directory]; % Cedar/Graham/orcinus
         sys = @(inp) system(inp);
         cd(['/home/' CC_Username '/project']);
     elseif ~isempty(regexp(Server,'se[0-9]','ONCE')) || strcmpi(Server,'log')
         Maindir = ['/home/' CWL_Username '/scratch/' Project_Directory_Name];
-        home = ['/home/' CWL_Username '/bin']; % Sockeye
+        home = ['/home/' CWL_Username filesep LiX_Directory]; % Sockeye
         sys = @(inp) system(inp);
         cd(['/home/' CWL_Username '/scratch']);
     elseif strcmpi(Server,'bel')
         Maindir = ['/home/' CC_Username '/project/' Project_Directory_Name];
-        home = ['/home/' CC_Username '/bin']; % Beluga
+        home = ['/home/' CC_Username filesep LiX_Directory]; % Beluga
         sys = @(inp) system_def(inp); % Needed to circumvent error
         cd(['/home/' CC_Username '/project']);
     elseif strcmpi(Server,'pat')
         Maindir = ['/media/user/project/' Project_Directory_Name];
-        home = '/home/user/bin'; % Lab PC
+        home = ['/home/user/' LiX_Directory]; % Lab PC
         sys = @(inp) system(inp); 
     end
 else
