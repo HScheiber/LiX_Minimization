@@ -50,11 +50,20 @@ q.I  = -1; % atomic
 %% Parameters from input for LJ potential
 sigma_MM = Parameters(1,1);
 sigma_XX = Parameters(1,2);
-sigma_MX = Parameters(1,3);
 
 epsilon_MM = Parameters(2,1);
 epsilon_XX = Parameters(2,2);
-epsilon_MX = Parameters(2,3);
+
+% Apply mixing rules if MX parameters not defined otherwise use them
+[~,Pcol] = size(Parameters);
+if Pcol == 2
+    % Cross terms using Lorenz-Berthelot combining rules
+    sigma_MX = (1/2)*(sigma_MM + sigma_XX);
+    epsilon_MX = sqrt(epsilon_MM*epsilon_XX);
+else
+    sigma_MX = Parameters(1,3);
+    epsilon_MX = Parameters(2,3);
+end
 
 % Change parameters into A/r12 - B/r6 format
 A_MM = 4*epsilon_MM*(sigma_MM^12);
