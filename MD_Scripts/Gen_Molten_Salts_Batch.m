@@ -50,9 +50,9 @@ else
 end
 
 %% User settings
-CC_Username = 'scheiber'; % Compute Canada Username (used for graham, cedar, orcinus and beluga)
+CC_Username = 'dzhp1'; % Compute Canada Username (used for graham, cedar, orcinus and beluga)
 CWL_Username = 'haydensc'; % CWL username (only used for sockeye);
-LiX_Directory = 'LiX_Minimization'; % location of directory
+LiX_Directory ='scratch/CHEM449/LiX_Minimization'; % location of directory
 
 %% Job Settings (any of these can be arrays)
 if ~Potential_Input
@@ -143,7 +143,7 @@ Top_fudgeLJ = 1.0; % Rescale LJ interaction by this amount for 1-4 bonded atoms
 Top_fudgeQQ = 1.0; % Rescale Coulomb interaction by this amount for 1-4 bonded atoms
 
 %% MDP SETTINGS
-MDP_Trajectory_Time = 10; % Trajectory time in nanoseconds. Set to 0 for single point energy calculation.
+MDP_Trajectory_Time = 30; % Trajectory time in nanoseconds. Set to 0 for single point energy calculation.
 MDP_dt = 0.002; % Time step in ps for md type calculations
 MDP_integrator = 'md'; % What type of calculation is run for single point energy calculations (steep = energy min, md = molecular dynamics)
 MDP_LJtol = 1e-5; % When doing PME for VdW-interactions, this is used to control the relative strength of the dispersion potential at rvdw in the same way as ewald-rtol controls the electrostatic potential.
