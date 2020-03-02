@@ -8,11 +8,11 @@ else
 end
 
 if strcmpi(Server,'ced') || strcmpi(Server,'cdr') % cedar
-    Account = 'rrg-patey-ad';
+    Account = 'def-thachuk';
 elseif ~isempty(regexp(Server,'se[0-9]','ONCE')) || strcmpi(Server,'log') % sockeye
-    Account = 'st-gpatey-1';
+    Account = 'def-thachuk';
 else
-    Account = 'def-patey';
+    Account = 'def-thachuk';
 end
 
 if strcmpi(Server,'sea') % Orcinus
