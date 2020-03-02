@@ -427,6 +427,7 @@ for idx = 1:N
     
     % Update Directory
     JobName = [Date '_' Geometry.Label '_' Model_Scaled '_' Ensemble];
+    TaskName = [Geometry.Label '_' Model_Scaled '_' Ensemble];
     WorkDir = fullfile(Maindir,Salt,JobName);
     
     % Create directory if it does not exist
@@ -955,8 +956,8 @@ for idx = 1:N
     % Place into batch script
     Batch_Text = strrep(Batch_Text,'##MDRUN##',mdrun_command);
     Batch_Text = strrep(Batch_Text,'##CLEANUP##',cleanup_command);
-    Batch_Text = strrep(Batch_Text,'##TASKNAME##',JobName);
-    Batch_Text = strrep(Batch_Text,'##ERROR##',[WorkDir filesep JobName]);
+    Batch_Text = strrep(Batch_Text,'##TASKNAME##',TaskName);
+    Batch_Text = strrep(Batch_Text,'##ERROR##',[WorkDir filesep TaskName]);
     Batch_Text = strrep(Batch_Text,'##DIRECTORY##',WorkDir);
 
     % Open and save batch script
