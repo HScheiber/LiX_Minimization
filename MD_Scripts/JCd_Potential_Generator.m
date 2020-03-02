@@ -500,14 +500,14 @@ if plotswitch
     h = cell(1,8);
     hold on
 
-    h{1} = plot(r,U_MX.Total,'Color','r','LineWidth',lw,'LineStyle','-');
-%     h{2} = plot(r,U_MM.dg,'Color','r','LineWidth',lw,'Linestyle','-');
-%     h{3} = plot(r,U_XX.dg,'Color','g','LineWidth',lw,'Linestyle','-');
+    h{1} = plot(r,U_MX.dg,'Color','r','LineWidth',lw,'LineStyle','-');
+    h{2} = plot(r,U_MM.dg,'Color','g','LineWidth',lw,'Linestyle','-');
+    h{3} = plot(r,U_XX.dg,'Color','b','LineWidth',lw,'Linestyle','-');
 
 %     GOI = gradient(U_MX.Total,Spacing);
 % 
 %     h{4} = plot(r,GOI,'Color','k','LineWidth',lw,'LineStyle',':');
-    plot(r,U_MX.dTotal,'Color','b','LineWidth',lw,'LineStyle',':');
+%    plot(r,U_MX.dTotal,'Color','b','LineWidth',lw,'LineStyle',':');
 
     title(['Plot of JC Potentials for ' Salt],...
         'Interpreter','latex','fontsize',fs)
@@ -517,8 +517,8 @@ if plotswitch
     xlabel('r (nm)','fontsize',fs,'Interpreter','latex');
     ylabel('Pair Potential (kJ mol$^{-1}$)','fontsize',fs,'Interpreter','latex');
 
-%     ylim([-2000 100]);
-    ylim([-100 50]);
+     ylim([-1000 800]);
+%    ylim([-100 50]);
     xlim([Startpoint Endpoint]);
 
     % Blank line
