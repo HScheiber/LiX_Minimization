@@ -886,7 +886,7 @@ for idx = 1:N
         end
         JobFile = fullfile(MinDir,'TempJobInfo.mat');
         save(JobFile);
-        Batch_Text = strrep(Batch_Text,'##PREMIN##',['matlab -batch "MD_Preminimization(''' MinDir ''')"']);
+        Batch_Text = strrep(Batch_Text,'##PREMIN##',['matlab -r "MD_Preminimization(''' MinDir ''')"']);
     end
 
     % Prepare mdrun command
