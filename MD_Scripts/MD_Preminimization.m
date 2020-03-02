@@ -694,30 +694,30 @@ else
 end
 diary off
 
-% Return to working directory of primary job
-cd(IP.WorkDir)
-
-% Add number of unit cells to topology file
+% Add number of unit cells to topology file (this will not change)
 IP.Topology_Text = strrep(IP.Topology_Text,'##N##',num2str(IP.N_Supercell));
 
-% Add unit cell coordinates
-IP.Coordinate_Text = AddCartesianCoord(IP.Coordinate_Text,IP.Geometry,1,false,IP.CoordType);
-
-% Save unit cell .gro file into current directory
-fid = fopen(IP.UnitCellFile,'wt');
-fwrite(fid,regexprep(IP.Coordinate_Text,'\r',''));
-fclose(fid);
-
-% Save number of atoms into .mat file
+% Save number of atoms into .mat file (this wont change)
 NumberFile = fullfile(IP.WorkDir,[IP.JobName '.mat']);
 N_Cell = IP.N_Cell;
 N_total = (IP.N_Supercell^3)*N_Cell;
 save(NumberFile,'N_total','N_Cell');
 N = num2str(IP.N_Supercell);
 
+%% Geometry Editing of minimized cell plus final gromacs minimization
+
+% Add unit cell coordinates
+IP.Coordinate_Text = AddCartesianCoord(IP.Coordinate_Text,IP.Geometry,1,false,IP.CoordType);
+
+% Save unit cell .gro file into main directory
+fid = fopen(IP.UnitCellFile,'wt');
+fwrite(fid,regexprep(IP.Coordinate_Text,'\r',''));
+fclose(fid);
+
 % Create supercell
+Temp_SupercellFile = fullfile(Directory,[IP.TaskName '.' IP.CoordType]);
 Supercell_command = [IP.gmx ' genconf -f ' windows2unix(IP.UnitCellFile) ...
-     ' -o ' windows2unix(IP.SuperCellFile) ' -nbox ' N ' ' N ' ' N];
+     ' -o ' windows2unix(Temp_SupercellFile) ' -nbox ' N ' ' N ' ' N];
 [errcode,output] = system(Supercell_command);
 
 if errcode ~= 0
@@ -725,17 +725,18 @@ if errcode ~= 0
     error(['Error creating supercell with genconf. Problem command: ' newline Supercell_command]);
 end
 
-% Expand supercell by requested amount
+% Geometry Editing: expand supercell by requested amount
 a_sc = num2str(IP.Expand_a_SC*IP.Geometry.a*IP.N_Supercell/10,'%10.8f'); % supercell a length in nm
 b_sc = num2str(IP.Expand_b_SC*IP.Geometry.b*IP.N_Supercell/10,'%10.8f'); % supercell b length in nm
 c_sc = num2str(IP.Expand_c_SC*IP.Geometry.c*IP.N_Supercell/10,'%10.8f'); % supercell c length in nm
 
+% Cell angles
 bc = num2str(IP.Geometry.alpha,'%10.4f');
 ac = num2str(IP.Geometry.beta,'%10.4f');
 ab = num2str(IP.Geometry.gamma,'%10.4f');
 
-Expand_command = [IP.gmx ' editconf -f ' windows2unix(IP.SuperCellFile) ...
-     ' -o ' windows2unix(IP.SuperCellFile) ' -box ' a_sc ' ' b_sc ' ' c_sc ' ' ...
+Expand_command = [IP.gmx ' editconf -f ' windows2unix(Temp_SupercellFile) ...
+     ' -o ' windows2unix(Temp_SupercellFile) ' -box ' a_sc ' ' b_sc ' ' c_sc ' ' ...
      '-noc -angles ' bc ' ' ac ' ' ab];
 [errcode,output] = system(Expand_command);
 
@@ -744,7 +745,72 @@ if errcode ~= 0
     error(['Error expanding supercell with editconf. Problem command: ' newline Expand_command]);
 end
 
+%% Gromacs final minimize after geometry editing
+MDP_Template = strrep(MDP_Template,'= md                ; What type of calculation is run',...
+    ['= ' IP.MinMDP.min_integrator newline 'emtol                    = ' num2str(IP.emtol)]);
+MDP_Template = regexprep(MDP_Template,'nsteps                   = [0-9|\.|\-]+',...
+    ['nsteps                   = ' num2str(IP.MinMDP.nsteps_min)]);
+
+% Determine cutoff length
+R_List_Cutoff = pad(num2str(IP.MDP_RList_Setup),18);
+R_Coulomb_Cutoff = pad(num2str(IP.MDP_RCoulomb_Setup),18);
+R_VDW_Cutoff = pad(num2str(IP.MDP_RVDW_Setup),18);
+MDP_Template = strrep(MDP_Template,'##RLIST##',R_List_Cutoff);
+MDP_Template = strrep(MDP_Template,'##RCOULOMB##',R_Coulomb_Cutoff);
+MDP_Template = strrep(MDP_Template,'##RVDW##',R_VDW_Cutoff);
+
+% Save MDP file in current directory
+MDP_File = fullfile(Directory,[FileBase '.mdp']);
+fidMDP = fopen(MDP_File,'wt');
+fwrite(fidMDP,regexprep(MDP_Template,'\r',''));
+fclose(fidMDP);
+
 % Generate topology file
+Topology_File = fullfile(Directory,[FileBase '.top']);
+Atomlist = copy_atom_order(Temp_SupercellFile);
+Topology_text_new = strrep(IP.Topology_Text,'##LATOMS##',Atomlist);
+fidTOP = fopen(Topology_File,'wt');
+fwrite(fidTOP,Topology_text_new);
+fclose(fidTOP);
+
+Trajectory_File = fullfile(Directory,[FileBase '.tpr']);
+MDPout_File = fullfile(Directory,[FileBase '_out.mdp']);
+GrompLog_File = fullfile(Directory,[FileBase '_Grompplog.log']);
+
+FMin_Grompp = [IP.gmx ' grompp -c ' windows2unix(Temp_SupercellFile) ...
+    ' -f ' windows2unix(MDP_File) ' -p ' windows2unix(Topology_File) ...
+    ' -o ' windows2unix(Trajectory_File) ' -po ' windows2unix(MDPout_File) ...
+    ' -maxwarn 1' IP.passlog windows2unix(GrompLog_File)];
+[state,~] = system(FMin_Grompp);
+% Catch error in grompp
+if state ~= 0
+    error(['Error running GROMPP. Problem command: ' newline FMin_Grompp]);
+else
+    delete(GrompLog_File)
+end
+
+% Prepare minimization mdrun command
+Log_File = fullfile(Directory,[FileBase '.log']);
+
+Energy_file = fullfile(Directory,[FileBase '.edr']);
+
+TRR_File = fullfile(Directory,[FileBase '.trr']);
+
+mdrun_command = [IP.gmx ' mdrun -s ' windows2unix(Trajectory_File) ...
+    ' -o ' windows2unix(TRR_File) ' -g ' windows2unix(Log_File) ...
+    ' -e ' windows2unix(Energy_file) ' -c ' windows2unix(IP.SuperCellFile)];
+if ~isempty(IP.TableFile_MX) % TF potential requires table
+    mdrun_command = [mdrun_command ' -table ' windows2unix(IP.TableFile_MX)];
+end
+
+% Final minimization
+[state,mdrun_output] = system(mdrun_command);
+if state ~= 0
+    disp(mdrun_output);
+    error(['Error running mdrun for final minimization. Problem command: ' newline mdrun_command]);
+end
+
+% Generate final topology file for molecular dynamics
 Atomlist = copy_atom_order(IP.SuperCellFile);
 IP.Topology_Text = strrep(IP.Topology_Text,'##LATOMS##',Atomlist);
 fidTOP = fopen(IP.Topology_File,'wt');
@@ -761,6 +827,9 @@ GROMPP_command = [IP.gmx ' grompp -c ' windows2unix(IP.SuperCellFile) ...
 if errcode ~= 0
     error(['Error running GROMPP. Problem command: ' newline GROMPP_command]);
 end
+
+% Return to working directory of primary job
+cd(IP.WorkDir)
 
 % Remove minimization temporary folder
 system(del_command);

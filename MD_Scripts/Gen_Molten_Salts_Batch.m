@@ -98,12 +98,6 @@ Delete_Supercell = false; % Automatically delete the supercell file if true
 Delete_Backups = true; % Automatically delete any gromacs backup files found if true
 
 %% Structure modifications
-% Expand/contract the unit cell lattice parameters by this factor. Simple
-% rescale of the unit cell
-Expand_a_UC = 1.0;
-Expand_b_UC = 1.0;
-Expand_c_UC = 1.0;
-
 % Expand a lattice parameter of the supercell by this factor.
 % Creates an empty volume upon expansion. Values less than 1 not defined.
 Expand_a_SC = 1.0;
@@ -180,12 +174,12 @@ beta_JC = 0.1; % Reduce Gamma by this multiple when step size is too large (for 
 beta_TF = 0.1; % Reduce Gamma by this multiple when step size is too large (for TF models).
 MaxLineTries = 10; % Maximum number of tries to compute lower energy point before decreasing numerical derivative step size
 Max_cycle_restarts = 10; % Maximum number of cycle restarts
-E_Unphys = -2.2e3; % unphysical energy cutoff
-DelE_Unphys = 200; % Unphysical gradient cutoff
+E_Unphys = -Inf; % unphysical energy cutoff
+DelE_Unphys = Inf; % Unphysical gradient cutoff
 MinMDP.nsteps_point = 0; % Number of steps to perform before ending (should be 0 for single point energy calculations)
 MinMDP.point_integrator = 'md'; % What type of calculation is run for single point energy calculations (steep = energy min, md = molecular dynamics)
 MinMDP.dt = 0.002; % Time step in ps for md type calculations
-MinMDP.min_integrator = 'steep'; % 'steep' or 'l-bfgs'
+MinMDP.min_integrator = 'steep'; % 'steep', 'cg', or 'l-bfgs'
 MinMDP.nsteps_min = 1000; % Number of steps to perform before stopping for energy minimization runs
 MinMDP.CutOffScheme = 'Verlet'; % Either 'group' or 'Verlet' (does NOT apply to tabulated potentials, these are set to group)
 MinMDP.VerletBT = -1; % This sets the maximum allowed error for pair interactions per particle caused by the Verlet buffer, which indirectly sets rlist unless set to -1, in which case rlist will be used.
@@ -823,11 +817,6 @@ for idx = 1:N
     % Add coordinates in xyz space (lattice parameter-dependent)
     if Found_DataMatch
         
-        % Expand unit cell if selected
-        Geometry.a = Geometry.a*Expand_a_UC;
-        Geometry.b = Geometry.b*Expand_b_UC;
-        Geometry.c = Geometry.c*Expand_c_UC;
-        
         % Save number of atoms into .mat file
         NumberFile = fullfile(WorkDir,[JobName '.mat']);
         save(NumberFile,'N_total','N_Cell')
@@ -967,7 +956,7 @@ for idx = 1:N
 
     % Submit job
     disp('Job input files produced for:')
-    disp([Salt ' ' JobName])
+    disp([Salt ' ' TaskName])
     if ~ispc && Submit_Jobs
         sys([qsub_cmd ' ' fullfile(WorkDir,[JobName '.subm'])]);
         disp('Job submitted.')
