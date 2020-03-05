@@ -100,7 +100,7 @@ Delete_Backups = true; % Automatically delete any gromacs backup files found if 
 %% Structure modifications
 % Expand a lattice parameter of the supercell by this factor.
 % Creates an empty volume upon expansion. Values less than 1 not defined.
-Expand_a_SC = 1.0;
+Expand_a_SC = 1.5;
 Expand_b_SC = 1.0;
 Expand_c_SC = 1.0;
 
@@ -111,7 +111,7 @@ Time_Constant_T = 0.4; %[ps] time constant for coupling T. Should be 20*Nsttcoup
 Nsttcouple = 10; %[ps] The frequency for coupling the temperature. 
 
 %% Barostat Options
-Barostat = 'Berendsen'; % Options: 'no' 'Berendsen' 'Parrinello-Rahman' 'MTTK' (set NO for NVT)
+Barostat = 'no'; % Options: 'no' 'Berendsen' 'Parrinello-Rahman' 'MTTK' (set NO for NVT)
 Target_P = 1.0; % Target pressure in bar
 Time_Constant_P = 1; %[ps] time constant for coupling P
 Nstpcouple = 10; %[ps] The frequency for coupling the pressure. 
@@ -120,7 +120,7 @@ Compressibility = 4.5e-5; % [bar^-1] The compressibility
 %% Simulated Annealing Options
 Annealing = 'single'; % Options: 'no' 'single' 'periodic'
 Annealing_Times = [0   500  10000 20000 30000]; % [ps] A list with the number of annealing reference/control points used
-Annealing_Temps = [300 1000 1000  300   300]; % [K] A list of temperatures at the annealing reference/control points used. Must be equal in length to previous line.
+Annealing_Temps = [300 2500 2500  600   600]; % [K] A list of temperatures at the annealing reference/control points used. Must be equal in length to previous line.
 
 %% MDP OUTPUT OPTIONS
 Output_Coords = 2000; % Number of steps between outputting coordinates
@@ -138,7 +138,7 @@ Top_fudgeQQ = 1.0; % Rescale Coulomb interaction by this amount for 1-4 bonded a
 
 %% MDP SETTINGS
 MDP_Trajectory_Time = 30; % Trajectory time in nanoseconds. Set to 0 for single point energy calculation.
-MDP_dt = 0.002; % Time step in ps for md type calculations
+MDP_dt = 0.001; % Time step in ps for md type calculations
 MDP_integrator = 'md'; % What type of calculation is run for single point energy calculations (steep = energy min, md = molecular dynamics)
 MDP_LJtol = 1e-5; % When doing PME for VdW-interactions, this is used to control the relative strength of the dispersion potential at rvdw in the same way as ewald-rtol controls the electrostatic potential.
 MDP_CutOffScheme = 'Verlet'; % Either 'group' or 'Verlet' (does NOT apply to tabulated potentials, these are set to group)
