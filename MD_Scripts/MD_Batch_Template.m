@@ -81,7 +81,7 @@ elseif strcmpi(Server,'bel') % Beluga
     end
     
     mdrun = ['srun ##MDRUN## -notunepme -dlb yes -maxh ' num2str(Settings.Hours)];
-    gmx = 'gmx_mpi_d';
+    gmx = 'srun gmx_mpi_d';
     
     TemplateText = ['#!/bin/bash' newline ... 
         '#SBATCH --time=' num2str(Settings.Hours) ':' num2str(Settings.Mins) ':00' newline ... 
