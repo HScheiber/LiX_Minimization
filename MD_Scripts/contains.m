@@ -1,6 +1,10 @@
-function output = contains(str,pattern,extra,extra2)
-	if strcmpi(extra,'ignorecase') && extra2
-		match = regexpi(str,pattern,'ONCE');
+function output = contains(str,pattern,varargin)
+	if nargin > 2
+		if strcmpi(varargin{1},'ignorecase') && varargin{2}
+			match = regexpi(str,pattern,'ONCE');
+		else
+			match = regexp(str,pattern,'ONCE');
+		end
 	else
 		match = regexp(str,pattern,'ONCE');
 	end
