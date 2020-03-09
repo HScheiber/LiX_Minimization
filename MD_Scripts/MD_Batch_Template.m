@@ -1,10 +1,14 @@
-function [TemplateText,qsub,gmx,Server] = MD_Batch_Template(Settings)
+function [TemplateText,qsub,gmx,Server] = MD_Batch_Template(Settings,varargin)
 
-if ispc
-    Server = 'sea'; % for testing
+if nargin > 1
+    Server = varargin{1};
 else
-    [~,Servertxt] = system('hostname -s | cut -c 1-3');
-    Server = strtrim(Servertxt);
+    if ispc
+        Server = getenv('COMPUTERNAME');
+    else
+        [~,Servertxt] = system('hostname -s | cut -c 1-3');
+        Server = strtrim(Servertxt);
+    end
 end
 
 if strcmpi(Server,'ced') || strcmpi(Server,'cdr') % cedar
@@ -220,9 +224,9 @@ elseif strcmpi(Server,'ced') || strcmpi(Server,'cdr') || strcmpi(Server,'gra') %
     
     qsub = 'sbatch';
 else
-    TemplateText = '';
-    qsub = 'local';
     gmx = 'gmx_d';
+    [TemplateText,~,~,~] = MD_Batch_Template(Settings,Settings.Target_Server);
+    qsub = 'local';
 end
 
 end

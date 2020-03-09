@@ -49,10 +49,27 @@ else
     Potential_Input = false;
 end
 
-%% User settings
+%% User/local job settings
 CC_Username = 'dzhp1'; % Compute Canada Username (used for graham, cedar, orcinus and beluga)
 CWL_Username = 'haydensc'; % CWL username (only used for sockeye);
-LiX_Directory ='scratch/CHEM449/LiX_Minimization'; % location of directory
+home_dir = '';% path to LiX_Minimization repo before LiX_Directory, home_dir + LiX_Directory should be your local LiX_Minimization directory
+LiX_Directory ='scratch/CHEM449/LiX_Minimization'; % location of repo directory
+Local_Project_Dir = pwd; % For local jobs, this is the full path to the outer job directory (use pwd for current directory)
+Project_Directory_Name = 'Molten_Salts_MD'; % Name of project directory to contain job
+% This will set up the target server to create your batch script for.
+% Will option will be ignored when running on one of the known compute servers.
+JobSettings.Target_Server = 'sea'; % 'sea' = orciuns, 'ced' = cedar', 'bel' = beluga, 'log' = sockeye, 'gra' = graham.
+
+% CC_Username = 'scheiber'; % Compute Canada Username (used for graham, cedar, orcinus and beluga)
+% CWL_Username = 'haydensc'; % CWL username (only used for sockeye);
+% home_dir = 'C:\Users\Hayden\Documents\Patey_Lab'; % path to LiX_Minimization repo before LiX_Directory, used for local jobs only
+% LiX_Directory ='LiX_Minimization'; % location of directory
+% Local_Project_Dir = 'C:\Users\Hayden\Documents\Patey_Lab'; % For running local jobs, this is the full path to the main job directory (use pwd for current directory)
+% Project_Directory_Name = 'Molten_Salts_MD'; % Name of project directory to contain job
+% % This will set up the target server to create your batch script for.
+% % Will option will be ignored when running on one of the known compute servers.
+% JobSettings.Target_Server = 'sea'; % 'sea' = orciuns, 'ced' = cedar', 'bel' = beluga, 'log' = sockeye, 'gra' = graham.
+
 
 %% Job Settings (any of these can be arrays)
 if ~Potential_Input
@@ -71,16 +88,16 @@ if ~Potential_Input
     Scale_Alpha = 1.0; % Scale the repulsive exponential parameter alpha (affects TF only)
 end
 
-%% Compute Node settings
+%% Compute Node settings (only apply for batch jobs)
 JobSettings.Hours = 24; % Max time for each job (hours)
 JobSettings.Mins = 0; % Max time for job (minutes)
 JobSettings.Cores = 32; % Minimum number of cores to request for calculation
 JobSettings.Mempernode = '0'; % Memory request for server (default = '-1', max per core = '0', eg '3G' for cedar or 3gb for sockeye)
 
 %% Auxiliary Job Settings (select only one)
-Skip_Minimization = false; % When true, always skip the minimization step
-Project_Directory_Name = 'Molten_Salts_MD';
-Submit_Jobs = true; % Set to true to submit MD jobs to batch script, otherwise just produce input files.
+Skip_Minimization = false; % When true, skip the minimization step
+Skip_MD_local = true; % Prevents running the mdrun command locally when true;
+Submit_Jobs = true; % Set to true to submit MD jobs to batch script or to run locally, otherwise just produce input files.
 Find_Min_Params = true; % When true, finds lowest energy parameters for IC based on Data_Types. When false, uses input IC
 Find_Similar_Params = true; % If no exact minimized geometry is found for the input model, find geometry for a similar model
 Data_Types = 1; % Allowed data types for automatic search of initial conditions (0 = normal, 1 = cell optimized, 2 = full optimized, 3 = atom optimized only)
@@ -193,12 +210,14 @@ Longest_Cutoff = max([MDP_RList_Cutoff MDP_RCoulomb_Cutoff MDP_RVDW_Cutoff]);
 
 if ispc % for testing
     passlog = ' ^&^> ';
-    Maindir = ['C:\Users\Hayden\Documents\Patey_Lab\' Project_Directory_Name];
-    home = ['C:\Users\Hayden\Documents\Patey_Lab\' LiX_Directory]; % windows laptop
+    wsl = 'wsl source ~/.bashrc; ';
+    Maindir = [Local_Project_Dir filesep Project_Directory_Name];
+    home = [home_dir filesep LiX_Directory];
     gmx = 'wsl source ~/.bashrc; gmx_d';
     sys = @(inp) system(inp); 
 elseif isunix
     passlog = ' &> ';
+    wsl = '';
     if strcmpi(Server,'ced') || strcmpi(Server,'cdr') || strcmpi(Server,'sea') || strcmpi(Server,'pod')
         Maindir = ['/home/' CC_Username '/project/' Project_Directory_Name];
         home = ['/home/' CC_Username filesep LiX_Directory]; % Cedar/Graham/orcinus
@@ -212,12 +231,16 @@ elseif isunix
     elseif strcmpi(Server,'bel')
         Maindir = ['/home/' CC_Username '/project/' Project_Directory_Name];
         home = ['/home/' CC_Username filesep LiX_Directory]; % Beluga
-        sys = @(inp) system_def(inp); % Needed to circumvent error
+        sys = @(inp) system_def(inp); % Needed to circumvent path error
         cd(['/home/' CC_Username '/project']);
     elseif strcmpi(Server,'pat')
         Maindir = ['/media/user/project/' Project_Directory_Name];
         home = ['/home/user/' LiX_Directory]; % Lab PC
-        sys = @(inp) system(inp); 
+        sys = @(inp) system(inp);
+    else
+        sys = @(inp) system(inp);
+        home = [home_dir filesep LiX_Directory];
+        Maindir = [Local_Project_Dir filesep Project_Directory_Name];
     end
 else
     error('Unknown machine type.')
@@ -886,7 +909,11 @@ for idx = 1:N
         end
         JobFile = fullfile(MinDir,'TempJobInfo.mat');
         save(JobFile);
-        Batch_Text = strrep(Batch_Text,'##PREMIN##',['matlab -r "MD_Preminimization(''' MinDir ''')"']);
+        if ~strcmpi(qsub_cmd,'local')
+            Batch_Text = strrep(Batch_Text,'##PREMIN##',['matlab -r "MD_Preminimization(''' MinDir ''')"']);
+        else
+            Batch_Text = strrep(Batch_Text,['##PREMIN##' newline],'');
+        end
     end
 
     % Prepare mdrun command
@@ -915,49 +942,107 @@ for idx = 1:N
     % Clean up MDP out file if set  
     cleanup_command = '';
     if Delete_MDPout
-        cleanup_command = ['rm ' MDPout_File newline]; %#ok<*UNRCH>
+        cleanup_command = [wsl 'rm ' MDPout_File newline]; %#ok<*UNRCH>
     end
     if Delete_Supercell
-        cleanup_command = [cleanup_command 'rm ' SuperCellFile newline];
+        cleanup_command = [cleanup_command wsl 'rm ' windows2unix(SuperCellFile) newline];
     end
     if Delete_MDlog
-        cleanup_command = [cleanup_command 'rm ' Log_File newline];
+        cleanup_command = [cleanup_command wsl 'rm ' windows2unix(Log_File) newline];
     end
     if Delete_ConfOut
-        cleanup_command = [cleanup_command 'rm ' ConfOut_File newline];
+        cleanup_command = [cleanup_command wsl 'rm ' windows2unix(ConfOut_File) newline];
     end
     if Delete_TRR
-        cleanup_command = [cleanup_command 'rm ' TRR_File newline];
+        cleanup_command = [cleanup_command wsl 'rm ' windows2unix(TRR_File) newline];
     end
     if Delete_TPR
-        cleanup_command = [cleanup_command 'rm ' Trajectory_File newline];
+        cleanup_command = [cleanup_command wsl 'rm ' windows2unix(Trajectory_File) newline];
     end
     if Delete_Backups
-        cleanup_command = [cleanup_command 'find ' WorkDir ...
+        cleanup_command = [cleanup_command wsl 'find ' windows2unix(WorkDir) ...
             ' -name ''#*#'' -delete' newline]; %#ok<*AGROW>
     end
     
-    % After the run, convert into compressed trajectory file
-    cleanup_command = [cleanup_command ...
-        'echo "0" | ' gmx ' trjconv -f ' TRR_File ' -s ' Trajectory_File ...
-        ' -pbc atom -ur tric -o ' XTC_File ' -dt ' num2str(Trajectory_Step)];
 
     % Place into batch script
+    % After the run, convert output trajectory into compressed trajectory file
+    if ~Skip_MD_local
+        cleanup_command = [cleanup_command wsl ...
+            'echo "0" | ' gmx ' trjconv -f ' windows2unix(TRR_File) ' -s ' windows2unix(Trajectory_File) ...
+            ' -pbc atom -ur tric -o ' windows2unix(XTC_File) ' -dt ' num2str(Trajectory_Step)];
+        
+        clnup_command = cleanup_command;
+    else
+        clnup_command = [cleanup_command wsl ...
+            'echo "0" | ' gmx ' trjconv -f ' windows2unix(TRR_File) ' -s ' windows2unix(Trajectory_File) ...
+            ' -pbc atom -ur tric -o ' windows2unix(XTC_File) ' -dt ' num2str(Trajectory_Step)];
+    end
+    
     Batch_Text = strrep(Batch_Text,'##MDRUN##',mdrun_command);
-    Batch_Text = strrep(Batch_Text,'##CLEANUP##',cleanup_command);
+    Batch_Text = strrep(Batch_Text,'##CLEANUP##',clnup_command);
     Batch_Text = strrep(Batch_Text,'##TASKNAME##',TaskName);
-    Batch_Text = strrep(Batch_Text,'##ERROR##',[WorkDir filesep TaskName]);
-    Batch_Text = strrep(Batch_Text,'##DIRECTORY##',WorkDir);
-
+    Batch_Text = strrep(Batch_Text,'##ERROR##',windows2unix([WorkDir filesep TaskName]));
+    Batch_Text = strrep(Batch_Text,'##DIRECTORY##',windows2unix(WorkDir));
+    
+    if strcmpi(qsub_cmd,'local') % For running local jobs
+        Server = JobSettings.Target_Server;
+        if strcmpi(JobSettings.Target_Server,'ced') || ... % Cedar/Graham/orcinus
+                strcmpi(JobSettings.Target_Server,'cdr') || ...
+                strcmpi(JobSettings.Target_Server,'sea') || ...
+                strcmpi(JobSettings.Target_Server,'pod')
+            
+            TargetMaindir = ['/home/' CC_Username '/project/' Project_Directory_Name];
+            Targethome = ['/home/' CC_Username filesep LiX_Directory]; 
+        elseif ~isempty(regexp(JobSettings.Target_Server,'se[0-9]','ONCE')) || ... % Sockeye
+                strcmpi(JobSettings.Target_Server,'log')
+            
+            TargetMaindir = ['/home/' CWL_Username '/scratch/' Project_Directory_Name];
+            Targethome = ['/home/' CWL_Username filesep LiX_Directory]; 
+        elseif strcmpi(JobSettings.Target_Server,'bel')
+            
+            TargetMaindir = ['/home/' CC_Username '/project/' Project_Directory_Name];
+            Targethome = ['/home/' CC_Username filesep LiX_Directory]; % Beluga
+        elseif strcmpi(JobSettings.Target_Server,'pat')
+            
+            TargetMaindir = ['/media/user/project/' Project_Directory_Name];
+            Targethome = ['/home/user/' LiX_Directory]; % Lab PC
+        else
+            error(['Unknown target server for submission script: ' JobSettings.Target_Server]);
+        end
+        Batch_Text = strrep(Batch_Text,windows2unix(Maindir),TargetMaindir);
+    end
+    
+    
     % Open and save batch script
-    fidBS = fopen(fullfile(WorkDir,[JobName '.subm']),'wt');
-    fwrite(fidBS,regexprep(Batch_Text,'\r',''));
+    subm_file = fullfile(WorkDir,[JobName '.subm']);
+    fidBS = fopen(subm_file,'wt');
+    fwrite(fidBS,regexprep(Batch_Text,{'\r' wsl},{'' ''}));
     fclose(fidBS);
 
     % Submit job
     disp('Job input files produced for:')
     disp([Salt ' ' TaskName])
-    if ~ispc && Submit_Jobs
+    if Submit_Jobs && strcmpi(qsub_cmd,'local')       
+        
+        disp('Starting Job Locally.')
+        if ~Found_DataMatch
+            MD_Preminimization(MinDir);           
+        end
+        
+        if ~Skip_MD_local
+            [err,outp] = system(mdrun_command);
+            mdlog_file = fullfile(WorkDir,[JobName '.mdlog']);
+            fidBS = fopen(mdlog_file,'wt');
+            fwrite(fidBS,regexprep(outp,'\r',''));
+            fclose(fidBS);
+            if err ~= 0 
+                error(['Problem with mdrun command. See log file: ' mdlog_file]);
+            end
+        end
+        system(cleanup_command);
+        
+    elseif Submit_Jobs
         sys([qsub_cmd ' ' fullfile(WorkDir,[JobName '.subm'])]);
         disp('Job submitted.')
     end
