@@ -817,16 +817,16 @@ fidTOP = fopen(IP.Topology_File,'wt');
 fwrite(fidTOP,regexprep(IP.Topology_Text,'\r',''));
 fclose(fidTOP);
 
-GROMPP_command = [IP.gmx ' grompp -c ' windows2unix(IP.SuperCellFile) ...
-    ' -f ' windows2unix(IP.MDP_File) ' -p ' windows2unix(IP.Topology_File) ...
-    ' -o ' windows2unix(IP.Trajectory_File) ' -po ' windows2unix(IP.MDPout_File) ...
-    ' -maxwarn 1' IP.passlog windows2unix(IP.GrompLog_File)];
-[errcode,~] = system(GROMPP_command);
-
-% Catch error in grompp
-if errcode ~= 0
-    error(['Error running GROMPP. Problem command: ' newline GROMPP_command]);
-end
+% GROMPP_command = [IP.gmx ' grompp -c ' windows2unix(IP.SuperCellFile) ...
+%     ' -f ' windows2unix(IP.MDP_File) ' -p ' windows2unix(IP.Topology_File) ...
+%     ' -o ' windows2unix(IP.Trajectory_File) ' -po ' windows2unix(IP.MDPout_File) ...
+%     ' -maxwarn 1' IP.passlog windows2unix(IP.GrompLog_File)];
+% [errcode,~] = system(GROMPP_command);
+% 
+% % Catch error in grompp
+% if errcode ~= 0
+%     error(['Error running GROMPP. Problem command: ' newline GROMPP_command]);
+% end
 
 % Return to working directory of primary job
 cd(IP.WorkDir)

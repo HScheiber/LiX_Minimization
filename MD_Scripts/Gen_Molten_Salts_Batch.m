@@ -50,25 +50,25 @@ else
 end
 
 %% User/local job settings
-CC_Username = 'dzhp1'; % Compute Canada Username (used for graham, cedar, orcinus and beluga)
-CWL_Username = 'haydensc'; % CWL username (only used for sockeye);
-home_dir = '';% path to LiX_Minimization repo before LiX_Directory, home_dir + LiX_Directory should be your local LiX_Minimization directory
-LiX_Directory ='scratch/CHEM449/LiX_Minimization'; % location of repo directory
-Local_Project_Dir = pwd; % For local jobs, this is the full path to the outer job directory (use pwd for current directory)
-Project_Directory_Name = 'Molten_Salts_MD'; % Name of project directory to contain job
-% This will set up the target server to create your batch script for.
-% Will option will be ignored when running on one of the known compute servers.
-JobSettings.Target_Server = 'sea'; % 'sea' = orciuns, 'ced' = cedar', 'bel' = beluga, 'log' = sockeye, 'gra' = graham.
-
-% CC_Username = 'scheiber'; % Compute Canada Username (used for graham, cedar, orcinus and beluga)
+% CC_Username = 'dzhp1'; % Compute Canada Username (used for graham, cedar, orcinus and beluga)
 % CWL_Username = 'haydensc'; % CWL username (only used for sockeye);
-% home_dir = 'C:\Users\Hayden\Documents\Patey_Lab'; % path to LiX_Minimization repo before LiX_Directory, used for local jobs only
-% LiX_Directory ='LiX_Minimization'; % location of directory
-% Local_Project_Dir = 'C:\Users\Hayden\Documents\Patey_Lab'; % For running local jobs, this is the full path to the main job directory (use pwd for current directory)
+% home_dir = '';% path to LiX_Minimization repo before LiX_Directory, home_dir + LiX_Directory should be your local LiX_Minimization directory
+% LiX_Directory ='scratch/CHEM449/LiX_Minimization'; % location of repo directory
+% Local_Project_Dir = pwd; % For local jobs, this is the full path to the outer job directory (use pwd for current directory)
 % Project_Directory_Name = 'Molten_Salts_MD'; % Name of project directory to contain job
 % % This will set up the target server to create your batch script for.
 % % Will option will be ignored when running on one of the known compute servers.
 % JobSettings.Target_Server = 'sea'; % 'sea' = orciuns, 'ced' = cedar', 'bel' = beluga, 'log' = sockeye, 'gra' = graham.
+
+CC_Username = 'scheiber'; % Compute Canada Username (used for graham, cedar, orcinus and beluga)
+CWL_Username = 'haydensc'; % CWL username (only used for sockeye);
+home_dir = 'C:\Users\Hayden\Documents\Patey_Lab'; % path to LiX_Minimization repo before LiX_Directory, used for local jobs only
+LiX_Directory ='LiX_Minimization'; % location of directory
+Local_Project_Dir = 'C:\Users\Hayden\Documents\Patey_Lab'; % For running local jobs, this is the full path to the main job directory (use pwd for current directory)
+Project_Directory_Name = 'Molten_Salts_MD'; % Name of project directory to contain job
+% This will set up the target server to create your batch script for.
+% Will option will be ignored when running on one of the known compute servers.
+JobSettings.Target_Server = 'sea'; % 'sea' = orciuns, 'ced' = cedar', 'bel' = beluga, 'log' = sockeye, 'gra' = graham.
 
 
 %% Job Settings (any of these can be arrays)
@@ -890,17 +890,6 @@ for idx = 1:N
         fwrite(fidTOP,regexprep(Topology_Text,'\r',''));
         fclose(fidTOP);
         
-        GROMPP_command = [gmx ' grompp -c ' windows2unix(SuperCellFile) ...
-            ' -f ' windows2unix(MDP_File) ' -p ' windows2unix(Topology_File) ...
-            ' -o ' windows2unix(Trajectory_File) ' -po ' windows2unix(MDPout_File) ...
-            ' -maxwarn 1' passlog windows2unix(GrompLog_File)];
-        [errcode,~] = sys(GROMPP_command);
-        
-        % Catch error in grompp
-        if errcode ~= 0
-            error(['Error running GROMPP. Problem command: ' newline GROMPP_command]);
-        end
-        
     else
         % Save number of atoms into .mat file
         MinDir = fullfile(WorkDir,'Minimization');
@@ -915,7 +904,13 @@ for idx = 1:N
             Batch_Text = strrep(Batch_Text,['##PREMIN##' newline],'');
         end
     end
-
+    
+    % Inital Grompp command
+    Grompp_command = [gmx ' grompp -c ' windows2unix(SuperCellFile) ...
+        ' -f ' windows2unix(MDP_File) ' -p ' windows2unix(Topology_File) ...
+        ' -o ' windows2unix(Trajectory_File) ' -po ' windows2unix(MDPout_File) ...
+        ' -maxwarn 1 &> ' windows2unix(GrompLog_File) newline];
+    
     % Prepare mdrun command
     Log_File = fullfile(WorkDir,[JobName '.log']);
 
@@ -964,7 +959,6 @@ for idx = 1:N
             ' -name ''#*#'' -delete' newline]; %#ok<*AGROW>
     end
     
-
     % Place into batch script
     % After the run, convert output trajectory into compressed trajectory file
     if ~Skip_MD_local
@@ -979,6 +973,7 @@ for idx = 1:N
             ' -pbc atom -ur tric -o ' windows2unix(XTC_File) ' -dt ' num2str(Trajectory_Step)];
     end
     
+    Batch_Text = strrep(Batch_Text,'# Run Job',['# Run Job' newline Grompp_command]);
     Batch_Text = strrep(Batch_Text,'##MDRUN##',mdrun_command);
     Batch_Text = strrep(Batch_Text,'##CLEANUP##',clnup_command);
     Batch_Text = strrep(Batch_Text,'##TASKNAME##',TaskName);
@@ -1012,7 +1007,6 @@ for idx = 1:N
         end
         Batch_Text = strrep(Batch_Text,windows2unix(Maindir),TargetMaindir);
     end
-    
     
     % Open and save batch script
     subm_file = fullfile(WorkDir,[JobName '.subm']);
