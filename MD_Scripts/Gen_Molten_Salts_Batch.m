@@ -50,7 +50,17 @@ else
 end
 
 %% User/local job settings
-% CC_Username = 'dzhp1'; % Compute Canada Username (used for graham, cedar, orcinus and beluga)
+CC_Username = 'dzhp1'; % Compute Canada Username (used for graham, cedar, orcinus and beluga)
+CWL_Username = 'haydensc'; % CWL username (only used for sockeye);
+home_dir = '/Users/hancockdeng/CHEM449/LiX_Minimization';% path to LiX_Minimization repo before LiX_Directory, home_dir + LiX_Directory should be your local LiX_Minimization directory
+LiX_Directory ='scratch/CHEM449/LiX_Minimization'; % location of repo directory
+Local_Project_Dir = '/Users/hancockdeng/CHEM449'; % For local jobs, this is the full path to the outer job directory (use pwd for current directory)
+Project_Directory_Name = 'Molten_Salts_MD'; % Name of project directory to contain job
+% This will set up the target server to create your batch script for.
+% Will option will be ignored when running on one of the known compute servers.
+JobSettings.Target_Server = 'sea'; % 'sea' = orciuns, 'ced' = cedar', 'bel' = beluga, 'log' = sockeye, 'gra' = graham.
+
+% CC_Username = 'scheiber'; % Compute Canada Username (used for graham, cedar, orcinus and beluga)
 % CWL_Username = 'haydensc'; % CWL username (only used for sockeye);
 % home_dir = '';% path to LiX_Minimization repo before LiX_Directory, home_dir + LiX_Directory should be your local LiX_Minimization directory
 % LiX_Directory ='scratch/CHEM449/LiX_Minimization'; % location of repo directory
@@ -237,9 +247,15 @@ elseif isunix
         Maindir = ['/media/user/project/' Project_Directory_Name];
         home = ['/home/user/' LiX_Directory]; % Lab PC
         sys = @(inp) system(inp);
+    elseif strcmpi(Server,'Han') || strcmp(Server,'dhc')
+        sys = @(inp) system(inp);
+        home = home_dir;
+        gmx = 'source ~/.matlabrc; gmx_d';
+        wsl = 'source ~/.matlabrc; ';
+        Maindir = [Local_Project_Dir filesep Project_Directory_Name];
     else
         sys = @(inp) system(inp);
-        home = [home_dir filesep LiX_Directory];
+        home = home_dir;
         Maindir = [Local_Project_Dir filesep Project_Directory_Name];
     end
 else
