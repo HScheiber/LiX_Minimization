@@ -2,10 +2,9 @@
 % length input 'Endpoint'. Plotswitch is a logical true or false to
 % determine whether to plot the resulting potentials
 % Recommended spacing is 0.005 angstroms or 0.0005 nm
-% INPUT UNITS MUST BE ALL IN NANOMETERS. OUTPUTS ARE IN NANOMETERS AND
-% kJ/mol
-% DAMPED TF potential generator
-% Damp_Types:
+% INPUT UNITS MUST BE ALL IN NANOMETERS. OUTPUTS ARE IN NANOMETERS AND kJ/mol
+
+% C6Damping:
 % 0 = no (default) damping
 % 1 = BJ/rational damping (same as in D3(BJ), damps to a constant. Fairly
 % weak damping)
@@ -15,14 +14,23 @@
 % 5 = EHFSK Damping function (strong damping)
 % 6 = WY damping function (strongest damping)
 
+% C6Damping adds close-range damping
+
 % Parameter sets for C6/C8 coefficients
 % 0 = default TF Parameters
 % 1 = D3 values
 % 2 = Best literature values available
 % 3 = D4 with C6 and C8 generated on the fly
+
+% GAdjust are N x 3 arrays of gaussian parameters
+% (i , 1) is the Gaussian height of the ith adjustment (may be negative or
+% positive)
+% (i , 2) is the center point of the ith Gaussian (should be positive)
+% (i , 3) is the standard deviation or width (negative and positive values
+% are the same)
 function [U_MX_out, U_MM_out, U_XX_out] = TFd_Potential_Generator(Startpoint,...
     Endpoint,Spacing,Salt,plotswitch,Scaling_Params,vdw_modifier,RVDW_Cutoff,...
-    Damp_Type,Paramset,Geometry,Directory)
+    C6Damping,Paramset,Geometry,Directory,CRDamping,GAdjust_MX,GAdjust_MM,GAdjust_XX)
 
 %% Parameter Scaling 
 S_D = Scaling_Params(1); % Dispersion scaling factor
@@ -31,6 +39,41 @@ S_MMD = S_D*Scaling_Params(5); % Dispersion scaling factor for M-M interaction
 S_XXD = S_D*Scaling_Params(6); % Dispersion scaling factor for X-X interaction
 S_MXD = S_D*Scaling_Params(7); % Dispersion scaling factor for M-X interaction
 S_A = Scaling_Params(8); % Alpha scaling factor
+
+%% Close-Range Sigmoid Damping Parameters
+r_d = 0.10; % If close-range dispersion damping is on, this is the value of the sigmoid's midpoint
+sb = 150; % sigmoid "steepness" for damping
+
+%% Gaussian adjustments
+if exist('GAdjust_MM','var')
+    G_a_MM = GAdjust_MM(:,1);
+    G_b_MM = GAdjust_MM(:,2);
+    G_c_MM = GAdjust_MM(:,3);
+else
+    G_a_MM = 0;
+    G_b_MM = 0;
+    G_c_MM = 1;
+end
+
+if exist('GAdjust_XX','var')
+    G_a_XX = GAdjust_XX(:,1);
+    G_b_XX = GAdjust_XX(:,2);
+    G_c_XX = GAdjust_XX(:,3);
+else
+    G_a_XX = 0;
+    G_b_XX = 0;
+    G_c_XX = 1;
+end
+
+if exist('GAdjust_MX','var')
+    G_a_MX = GAdjust_MX(:,1);
+    G_b_MX = GAdjust_MX(:,2);
+    G_c_MX = GAdjust_MX(:,3);
+else
+    G_a_MX = 0;
+    G_b_MX = 0;
+    G_c_MX = 1;
+end
 
 %% Conversion factors and fundamental constants
 kj_per_erg = 1e-10; % kJ per erg
@@ -459,36 +502,47 @@ D.(Salt).XX = S_XXD.*D.(Salt).XX;
 C.(Salt).MX = S_MXD.*C.(Salt).MX;
 D.(Salt).MX = S_MXD.*D.(Salt).MX;
 
+%% If Damping at close range
+if CRDamping
+    f_r = 1./(1 + exp(-sb.*(r - r_d))); % sigmoid damping function
+    df_r = (sb.*exp(-sb.*(r - r_d)))./((1 + exp(-sb.*(r - r_d))).^2); % sigmoid damping function derivative
+    f_cutoff = 1/(1 + exp(-sb*(RVDW_Cutoff - r_d))); % damping function value at vdw cutoff
+else
+    f_r = 1; % No damping
+    df_r = 0; % Damping derivative is zero
+    f_cutoff = 1; % damping function value at vdw cutoff
+end
+
 %% No Damping
-if Damp_Type == 0
+if C6Damping == 0
     % No-damping function
-    f6_MX = 1;
-    f6_MM = 1;
-    f6_XX = 1;
+    f6_MX = f_r;
+    f6_MM = f_r;
+    f6_XX = f_r;
     
-    f8_MX = 1;
-    f8_MM = 1;
-    f8_XX = 1;
+    f8_MX = f_r;
+    f8_MM = f_r;
+    f8_XX = f_r;
 
     % Derivative parts of no-damping function   
-    df6_MX = 0;
-    df6_MM = 0;
-    df6_XX = 0;
+    df6_MX = df_r;
+    df6_MM = df_r;
+    df6_XX = df_r;
     
-    df8_MX = 0;
-    df8_MM = 0;
-    df8_XX = 0;
+    df8_MX = df_r;
+    df8_MM = df_r;
+    df8_XX = df_r;
 
     % Values at vdw cutoff
-    f6_cutoff_MX = 1;
-    f6_cutoff_MM = 1;
-    f6_cutoff_XX = 1;
-    f8_cutoff_MX = 1;
-    f8_cutoff_MM = 1;
-    f8_cutoff_XX = 1;
+    f6_cutoff_MX = f_cutoff;
+    f6_cutoff_MM = f_cutoff;
+    f6_cutoff_XX = f_cutoff;
+    f8_cutoff_MX = f_cutoff;
+    f8_cutoff_MM = f_cutoff;
+    f8_cutoff_XX = f_cutoff;
     
 %% BJ-Type Rational Damping
-elseif Damp_Type == 1
+elseif C6Damping == 1
 
     % Damping distances
     R0_MX = sqrt(D.(Salt).MX/C.(Salt).MX); % in nm
@@ -496,36 +550,36 @@ elseif Damp_Type == 1
     R0_XX = sqrt(D.(Salt).XX/C.(Salt).XX); % in nm
     
     % Damping functions (unitless)
-    f6_MX = 1./( 1 + ( R0_MX ./ r ).^6 );
-    f6_MM = 1./( 1 + ( R0_MM ./ r ).^6 );
-    f6_XX = 1./( 1 + ( R0_XX ./ r ).^6 );
+    f6_MX = f_r./( 1 + ( R0_MX ./ r ).^6 );
+    f6_MM = f_r./( 1 + ( R0_MM ./ r ).^6 );
+    f6_XX = f_r./( 1 + ( R0_XX ./ r ).^6 );
     
-    f8_MX = 1./( 1 + ( R0_MX ./ r ).^8 );
-    f8_MM = 1./( 1 + ( R0_MM ./ r ).^8 );
-    f8_XX = 1./( 1 + ( R0_XX ./ r ).^8 );
+    f8_MX = f_r./( 1 + ( R0_MX ./ r ).^8 );
+    f8_MM = f_r./( 1 + ( R0_MM ./ r ).^8 );
+    f8_XX = f_r./( 1 + ( R0_XX ./ r ).^8 );
     
     % Values of damping function at vdw cutoff
-    f6_cutoff_MX = 1/( 1 + ( R0_MX / RVDW_Cutoff )^6 );
-    f6_cutoff_MM = 1/( 1 + ( R0_MM / RVDW_Cutoff )^6 );
-    f6_cutoff_XX = 1/( 1 + ( R0_XX / RVDW_Cutoff )^6 );
-    f8_cutoff_MX = 1/( 1 + ( R0_MX / RVDW_Cutoff )^8 );
-    f8_cutoff_MM = 1/( 1 + ( R0_MM / RVDW_Cutoff )^8 );
-    f8_cutoff_XX = 1/( 1 + ( R0_XX / RVDW_Cutoff )^8 );
+    f6_cutoff_MX = f_cutoff/( 1 + ( R0_MX / RVDW_Cutoff )^6 );
+    f6_cutoff_MM = f_cutoff/( 1 + ( R0_MM / RVDW_Cutoff )^6 );
+    f6_cutoff_XX = f_cutoff/( 1 + ( R0_XX / RVDW_Cutoff )^6 );
+    f8_cutoff_MX = f_cutoff/( 1 + ( R0_MX / RVDW_Cutoff )^8 );
+    f8_cutoff_MM = f_cutoff/( 1 + ( R0_MM / RVDW_Cutoff )^8 );
+    f8_cutoff_XX = f_cutoff/( 1 + ( R0_XX / RVDW_Cutoff )^8 );
     
     % Derivative of damping functions
-    df6_MX = 6.*(R0_MX.^6).*(r.^5)./(((r.^6) + (R0_MX.^6)).^2);
-    df6_MM = 6.*(R0_MM.^6).*(r.^5)./(((r.^6) + (R0_MM.^6)).^2);
-    df6_XX = 6.*(R0_XX.^6).*(r.^5)./(((r.^6) + (R0_XX.^6)).^2);
+    df6_MX = f_r.*6.*(R0_MX.^6).*(r.^5)./(((r.^6) + (R0_MX.^6)).^2) + df_r./( 1 + ( R0_MX ./ r ).^6 );
+    df6_MM = f_r.*6.*(R0_MM.^6).*(r.^5)./(((r.^6) + (R0_MM.^6)).^2) + df_r./( 1 + ( R0_MM ./ r ).^6 );
+    df6_XX = f_r.*6.*(R0_XX.^6).*(r.^5)./(((r.^6) + (R0_XX.^6)).^2) + df_r./( 1 + ( R0_XX ./ r ).^6 );
     
-    df8_MX = 8.*(R0_MX.^8).*(r.^7)./(((r.^8) + (R0_MX.^8)).^2);
-    df8_MM = 8.*(R0_MM.^8).*(r.^7)./(((r.^8) + (R0_MM.^8)).^2);
-    df8_XX = 8.*(R0_XX.^8).*(r.^7)./(((r.^8) + (R0_XX.^8)).^2);
+    df8_MX = f_r.*8.*(R0_MX.^8).*(r.^7)./(((r.^8) + (R0_MX.^8)).^2) + df_r./( 1 + ( R0_MX ./ r ).^8 );
+    df8_MM = f_r.*8.*(R0_MM.^8).*(r.^7)./(((r.^8) + (R0_MM.^8)).^2) + df_r./( 1 + ( R0_MM ./ r ).^8 );
+    df8_XX = f_r.*8.*(R0_XX.^8).*(r.^7)./(((r.^8) + (R0_XX.^8)).^2) + df_r./( 1 + ( R0_XX ./ r ).^8 );
     
 %% Tang and Toennies Damping function. Cite:
 % "An improved simple model for the van der Waals potential based on universal damping functions for the dispersion coefficients."
 % K. T. Tang, J. P. Toennies
 % J. Chem. Phys. 1984, 80, 3726-3741.
-elseif Damp_Type == 2
+elseif C6Damping == 2
 
     % C6 damping functions
     f6sum_MX = 0;
@@ -536,9 +590,9 @@ elseif Damp_Type == 2
         f6sum_MM = f6sum_MM + ((alpha.MM.*r).^k)./factorial(k);
         f6sum_XX = f6sum_XX + ((alpha.XX.*r).^k)./factorial(k);
     end
-    f6_MX = 1 - f6sum_MX.*exp(-alpha.MX.*r);
-    f6_MM = 1 - f6sum_MM.*exp(-alpha.MM.*r);
-    f6_XX = 1 - f6sum_XX.*exp(-alpha.XX.*r);
+    f6_MX = f_r.*(1 - f6sum_MX.*exp(-alpha.MX.*r));
+    f6_MM = f_r.*(1 - f6sum_MM.*exp(-alpha.MM.*r));
+    f6_XX = f_r.*(1 - f6sum_XX.*exp(-alpha.XX.*r));
 
     % C8 damping functions
     f8sum_MX = 0;
@@ -549,17 +603,17 @@ elseif Damp_Type == 2
         f8sum_MM = f8sum_MM + ((alpha.MM.*r).^k)./factorial(k);
         f8sum_XX = f8sum_XX + ((alpha.XX.*r).^k)./factorial(k);
     end
-    f8_MX = 1 - f8sum_MX.*exp(-alpha.MX.*r);
-    f8_MM = 1 - f8sum_MM.*exp(-alpha.MM.*r);
-    f8_XX = 1 - f8sum_XX.*exp(-alpha.XX.*r);
+    f8_MX = f_r.*(1 - f8sum_MX.*exp(-alpha.MX.*r));
+    f8_MM = f_r.*(1 - f8sum_MM.*exp(-alpha.MM.*r));
+    f8_XX = f_r.*(1 - f8sum_XX.*exp(-alpha.XX.*r));
 
     % Values of damping function at vdw cutoff
-    f6_cutoff_MX = 1 - sum(((alpha.MX.*RVDW_Cutoff).^(0:6))./factorial(0:6)).*exp(-alpha.MX.*RVDW_Cutoff);
-    f6_cutoff_MM = 1 - sum(((alpha.MM.*RVDW_Cutoff).^(0:6))./factorial(0:6)).*exp(-alpha.MM.*RVDW_Cutoff);
-    f6_cutoff_XX = 1 - sum(((alpha.XX.*RVDW_Cutoff).^(0:6))./factorial(0:6)).*exp(-alpha.XX.*RVDW_Cutoff);
-    f8_cutoff_MX = 1 - sum(((alpha.MX.*RVDW_Cutoff).^(0:8))./factorial(0:8)).*exp(-alpha.MX.*RVDW_Cutoff);
-    f8_cutoff_MM = 1 - sum(((alpha.MM.*RVDW_Cutoff).^(0:8))./factorial(0:8)).*exp(-alpha.MM.*RVDW_Cutoff);
-    f8_cutoff_XX = 1 - sum(((alpha.XX.*RVDW_Cutoff).^(0:8))./factorial(0:8)).*exp(-alpha.XX.*RVDW_Cutoff);
+    f6_cutoff_MX = f_cutoff*(1 - sum(((alpha.MX.*RVDW_Cutoff).^(0:6))./factorial(0:6)).*exp(-alpha.MX.*RVDW_Cutoff));
+    f6_cutoff_MM = f_cutoff*(1 - sum(((alpha.MM.*RVDW_Cutoff).^(0:6))./factorial(0:6)).*exp(-alpha.MM.*RVDW_Cutoff));
+    f6_cutoff_XX = f_cutoff*(1 - sum(((alpha.XX.*RVDW_Cutoff).^(0:6))./factorial(0:6)).*exp(-alpha.XX.*RVDW_Cutoff));
+    f8_cutoff_MX = f_cutoff*(1 - sum(((alpha.MX.*RVDW_Cutoff).^(0:8))./factorial(0:8)).*exp(-alpha.MX.*RVDW_Cutoff));
+    f8_cutoff_MM = f_cutoff*(1 - sum(((alpha.MM.*RVDW_Cutoff).^(0:8))./factorial(0:8)).*exp(-alpha.MM.*RVDW_Cutoff));
+    f8_cutoff_XX = f_cutoff*(1 - sum(((alpha.XX.*RVDW_Cutoff).^(0:8))./factorial(0:8)).*exp(-alpha.XX.*RVDW_Cutoff));
 
     % Calculate C6 damping derivatives
     df6sum_MX = 0;
@@ -570,12 +624,12 @@ elseif Damp_Type == 2
         df6sum_MM = df6sum_MM + k.*(alpha.MM.^k).*(r.^(k-1))./factorial(k);
         df6sum_XX = df6sum_XX + k.*(alpha.XX.^k).*(r.^(k-1))./factorial(k);
     end
-    df6_MX = (alpha.MX.*exp(-alpha.MX.*r)).*f6sum_MX ...
-        - (exp(-alpha.MX.*r)).*df6sum_MX;
-    df6_MM = (alpha.MX.*exp(-alpha.MX.*r)).*f6sum_MM ...
-        - (exp(-alpha.MM.*r)).*df6sum_MM;
-    df6_XX = (alpha.MX.*exp(-alpha.MX.*r)).*f6sum_XX ...
-        - (exp(-alpha.XX.*r)).*df6sum_XX;
+    df6_MX = f_r.*((alpha.MX.*exp(-alpha.MX.*r)).*f6sum_MX ...
+        - (exp(-alpha.MX.*r)).*df6sum_MX) + df_r.*(1 - f6sum_MX.*exp(-alpha.MX.*r));
+    df6_MM = f_r.*((alpha.MX.*exp(-alpha.MX.*r)).*f6sum_MM ...
+        - (exp(-alpha.MM.*r)).*df6sum_MM) + df_r.*(1 - f6sum_MM.*exp(-alpha.MM.*r));
+    df6_XX = f_r.*((alpha.MX.*exp(-alpha.MX.*r)).*f6sum_XX ...
+        - (exp(-alpha.XX.*r)).*df6sum_XX) + df_r.*(1 - f6sum_XX.*exp(-alpha.XX.*r));
 
     %% Calculate C8 dispersion derivative with damping
     df8sum_MX = 0;
@@ -586,15 +640,15 @@ elseif Damp_Type == 2
         df8sum_MM = df8sum_MM + k.*(alpha.MM.^k).*(r.^(k-1))./factorial(k);
         df8sum_XX = df8sum_XX + k.*(alpha.XX.^k).*(r.^(k-1))./factorial(k);
     end
-    df8_MX = (alpha.MX.*exp(-alpha.MX.*r)).*f8sum_MX ...
-        - (exp(-alpha.MX.*r)).*df8sum_MX;
-    df8_MM = (alpha.MX.*exp(-alpha.MX.*r)).*f8sum_MM ...
-        - (exp(-alpha.MM.*r)).*df8sum_MM;
-    df8_XX = (alpha.MX.*exp(-alpha.MX.*r)).*f8sum_XX ...
-        - (exp(-alpha.XX.*r)).*df8sum_XX;
+    df8_MX = f_r.*((alpha.MX.*exp(-alpha.MX.*r)).*f8sum_MX ...
+        - (exp(-alpha.MX.*r)).*df8sum_MX) + df_r.*(1 - f8sum_MX.*exp(-alpha.MX.*r));
+    df8_MM = f_r.*((alpha.MX.*exp(-alpha.MX.*r)).*f8sum_MM ...
+        - (exp(-alpha.MM.*r)).*df8sum_MM) + df_r.*(1 - f8sum_MM.*exp(-alpha.MM.*r));
+    df8_XX = f_r.*((alpha.MX.*exp(-alpha.MX.*r)).*f8sum_XX ...
+        - (exp(-alpha.XX.*r)).*df8sum_XX) + df_r.*(1 - f8sum_XX.*exp(-alpha.XX.*r));
 
 %% Family of other damping functions related by a single formula, requiring van der waals radii
-elseif Damp_Type >= 3 && Damp_Type <= 6
+elseif C6Damping >= 3 && C6Damping <= 6
     
     % Define crystal radii source:
     % https://en.wikipedia.org/wiki/Ionic_radius
@@ -612,7 +666,7 @@ elseif Damp_Type >= 3 && Damp_Type <= 6
     % "Transferable ab initio intermolecular potentials. 1. Derivation from methanol dimer and trimer calculations"
     % W.T.M. Mooij, F.B. van Duijneveldt, J.G.C.M. van Duijneveldt-van de Rijdt, B.P. van Eijck
     % J. Phys. Chem. A 1999, 103, 9872-9882.
-    if Damp_Type == 3
+    if C6Damping == 3
         a = -1;
         b = 7.19;
         m = 3;
@@ -622,7 +676,7 @@ elseif Damp_Type >= 3 && Damp_Type <= 6
     % "Empirical correction to density functional theory for van der Waals interactions"
     % Q. Wu, W. Yang
     % J. Chem. Phys. 2002, 116, 515-524.
-    elseif Damp_Type == 4
+    elseif C6Damping == 4
         a = -1;
         b = 3.54;
         m = 3;
@@ -632,7 +686,7 @@ elseif Damp_Type >= 3 && Damp_Type <= 6
     % "Hydrogen bonding and stacking interactions of nucleic acid base pairs: A density-functional-theory based treatment"
     % M. Elstner, P. Hobza, T. Frauenheim, S. Suhai, E. Kaxiras
     % J. Chem. Phys. 2001, 114, 5149-5155.
-    elseif Damp_Type == 5
+    elseif C6Damping == 5
         a = -1;
         b = 3;
         m = 7;
@@ -642,7 +696,7 @@ elseif Damp_Type >= 3 && Damp_Type <= 6
     % "Empirical correction to density functional theory for van der Waals interactions"
     % Q. Wu, W. Yang
     % J. Chem. Phys. 2002, 116, 515-524.
-    elseif Damp_Type == 6
+    elseif C6Damping == 6
         a = exp(23);
         b = 23;
         m = 1;
@@ -654,64 +708,104 @@ elseif Damp_Type >= 3 && Damp_Type <= 6
     R0_XX = R0.(Halide) + R0.(Halide);
     
     % Damping functions
-    f6_MX = (1 + a.*exp(-b.*(r./R0_MX).^m) ).^n;
-    f6_MM = (1 + a.*exp(-b.*(r./R0_MM).^m) ).^n;
-    f6_XX = (1 + a.*exp(-b.*(r./R0_XX).^m) ).^n;
+    f6_MX = f_r.*((1 + a.*exp(-b.*(r./R0_MX).^m) ).^n);
+    f6_MM = f_r.*((1 + a.*exp(-b.*(r./R0_MM).^m) ).^n);
+    f6_XX = f_r.*((1 + a.*exp(-b.*(r./R0_XX).^m) ).^n);
     
     f8_MX = f6_MX; % These are not separately defined
     f8_MM = f6_MM; % These are not separately defined
     f8_XX = f6_XX; % These are not separately defined
 
     % Derivative parts of damping functions
-    df6_MX = -(a.*b.*m.*n.*(r./R0_MX).^(m - 1).*exp(-b.*(r./R0_MX).^m).*(a.*exp(-b.*(r/R0_MX).^m) + 1).^(n - 1))./R0_MX;            
-    df6_MM = -(a.*b.*m.*n.*(r./R0_MM).^(m - 1).*exp(-b.*(r./R0_MM).^m).*(a.*exp(-b.*(r/R0_MM).^m) + 1).^(n - 1))./R0_MM;
-    df6_XX = -(a.*b.*m.*n.*(r./R0_XX).^(m - 1).*exp(-b.*(r./R0_XX).^m).*(a.*exp(-b.*(r/R0_XX).^m) + 1).^(n - 1))./R0_XX;
+    df6_MX = f_r.*(-(a.*b.*m.*n.*(r./R0_MX).^(m - 1).*exp(-b.*(r./R0_MX).^m).*(a.*exp(-b.*(r/R0_MX).^m) + 1).^(n - 1))./R0_MX) ...
+        + df_r.*((1 + a.*exp(-b.*(r./R0_MX).^m) ).^n);           
+    df6_MM = f_r.*(-(a.*b.*m.*n.*(r./R0_MM).^(m - 1).*exp(-b.*(r./R0_MM).^m).*(a.*exp(-b.*(r/R0_MM).^m) + 1).^(n - 1))./R0_MM) ...
+        + df_r.*((1 + a.*exp(-b.*(r./R0_MM).^m) ).^n);
+    df6_XX = f_r.*(-(a.*b.*m.*n.*(r./R0_XX).^(m - 1).*exp(-b.*(r./R0_XX).^m).*(a.*exp(-b.*(r/R0_XX).^m) + 1).^(n - 1))./R0_XX) ...
+        + df_r.*((1 + a.*exp(-b.*(r./R0_XX).^m) ).^n);
     
     df8_MX = df6_MX;
     df8_MM = df6_MM;
     df8_XX = df6_XX;
     
     % Values at vdw cutoff
-    f6_cutoff_MX = (1 + a*exp(-b*(RVDW_Cutoff/R0_MX)^m) )^n;
-    f6_cutoff_MM = (1 + a*exp(-b*(RVDW_Cutoff/R0_MM)^m) )^n;
-    f6_cutoff_XX = (1 + a*exp(-b*(RVDW_Cutoff/R0_XX)^m) )^n;
+    f6_cutoff_MX = f_cutoff.*((1 + a*exp(-b*(RVDW_Cutoff/R0_MX)^m) )^n);
+    f6_cutoff_MM = f_cutoff.*((1 + a*exp(-b*(RVDW_Cutoff/R0_MM)^m) )^n);
+    f6_cutoff_XX = f_cutoff.*((1 + a*exp(-b*(RVDW_Cutoff/R0_XX)^m) )^n);
     f8_cutoff_MX = f6_cutoff_MX;
     f8_cutoff_MM = f6_cutoff_MM;
     f8_cutoff_XX = f6_cutoff_XX;
 
 end
 
+%% Modify potential with Gaussian Adjustments
+G_r_MM = zeros(1,length(r));
+dG_r_MM = zeros(1,length(r));
+G_r_MM_Cutoff = 0;
+for i = length(G_a_MM)
+    G_r_MM = G_r_MM + G_a_MM(i).*exp((-(r - G_b_MM(i)).^2)./(2.*(G_c_MM(i).^2)));
+    G_r_MM_Cutoff = G_r_MM_Cutoff + G_a_MM(i)*exp((-(RVDW_Cutoff - G_b_MM(i))^2)/(2*(G_c_MM(i)^2)));
+    dG_r_MM = dG_r_MM - (G_a_MM(i).*(r - G_b_MM(i))).*(exp((-(r - G_b_MM(i)).^2)./(2.*(G_c_MM(i).^2))))/(G_c_MM(i).^2);
+end
+
+G_r_XX = zeros(1,length(r));
+dG_r_XX = zeros(1,length(r));
+G_r_XX_Cutoff = 0;
+for i = length(G_a_XX)
+    G_r_XX = G_r_XX + G_a_XX(i).*exp((-(r - G_b_XX(i)).^2)./(2.*(G_c_XX(i).^2)));
+	G_r_XX_Cutoff = G_r_XX_Cutoff + G_a_XX(i)*exp((-(RVDW_Cutoff - G_b_XX(i))^2)/(2*(G_c_XX(i)^2)));
+    dG_r_XX = dG_r_XX - (G_a_XX(i).*(r - G_b_XX(i))).*(exp((-(r - G_b_XX(i)).^2)./(2.*(G_c_XX(i).^2))))/(G_c_XX(i).^2);
+end
+
+G_r_MX = zeros(1,length(r));
+dG_r_MX = zeros(1,length(r));
+G_r_MX_Cutoff = 0;
+for i = length(G_a_MX)
+    G_r_MX = G_r_MX + G_a_MX(i).*exp((-(r - G_b_MX(i)).^2)./(2.*(G_c_MX(i).^2)));
+    G_r_MX_Cutoff = G_r_MX_Cutoff + G_a_MX(i)*exp((-(RVDW_Cutoff - G_b_MX(i))^2)/(2*(G_c_MX(i)^2)));
+    dG_r_MX = dG_r_MX - (G_a_MX(i).*(r - G_b_MX(i))).*(exp((-(r - G_b_MX(i)).^2)./(2.*(G_c_MX(i).^2))))/(G_c_MX(i).^2);
+end
+
 %% Build PES: Plus-Minus
 
 % Plus - Minus total potential
-U_MetHal.Total = k_0*(e_c^2)*q.(Metal)*q.(Halide)./(r) ...
+U_MetHal.Total = f_r.*k_0*(e_c^2)*q.(Metal)*q.(Halide)./(r) ...
     + B.MX*exp(-alpha.MX.*r) ...
     - f6_MX.*C.(Salt).MX./(r.^6) ...
-    - f8_MX.*D.(Salt).MX./(r.^8);
+    - f8_MX.*D.(Salt).MX./(r.^8) ...
+    + G_r_MX;
 
 % components
 U_MetHal.f = 1./r; % Electrostatics function f(r)
-U_MetHal.g = - f6_MX.*C.(Salt).MX./(r.^6) - f8_MX.*D.(Salt).MX./(r.^8); % Dispersion g(r)
-U_MetHal.h = B.MX*exp(-alpha.MX.*r);% Short range repulsion h(r)
+U_MetHal.g = - f6_MX.*C.(Salt).MX./(r.^6) - f8_MX.*D.(Salt).MX./(r.^8) + G_r_MX; % Dispersion g(r)
+U_MetHal.h = B.MX*exp(-alpha.MX.*r) - k_0*(e_c^2)*q.(Metal)*q.(Halide)./(r) ...
+    + f_r.*k_0*(e_c^2)*q.(Metal)*q.(Halide)./(r); % Short range repulsion h(r)
 
 % Plus - Minus total derivative
-U_MetHal.dTotal = -k_0*(e_c^2)*q.(Metal)*q.(Halide)./(r.^2) ...
+U_MetHal.dTotal = -f_r.*k_0*(e_c^2)*q.(Metal)*q.(Halide)./(r.^2) ...
+    + df_r.*k_0*(e_c^2)*q.(Metal)*q.(Halide)./(r) ...
     - alpha.MX*B.MX*exp(-alpha.MX.*r) ...
     + f6_MX.*6.*C.(Salt).MX./(r.^7) ...
     - df6_MX.*C.(Salt).MX./(r.^6) ...
     + f8_MX.*8.*D.(Salt).MX./(r.^9) ...
-    - df8_MX.*D.(Salt).MX./(r.^8);
+    - df8_MX.*D.(Salt).MX./(r.^8) ...
+    + dG_r_MX;
 
 % components
 U_MetHal.df = 1./(r.^2);% Electrostatics function -df(r)/dr
 U_MetHal.dg = - f6_MX.*6.*C.(Salt).MX./(r.^7) + df6_MX.*C.(Salt).MX./(r.^6) ...
-    - f8_MX.*8.*D.(Salt).MX./(r.^9) + df8_MX.*D.(Salt).MX./(r.^8); % Dispersion -dg(r)/dr
-U_MetHal.dh = alpha.MX*B.MX*exp(-alpha.MX.*r);% Short range repulsion -dh(r)/dr
+    - f8_MX.*8.*D.(Salt).MX./(r.^9) + df8_MX.*D.(Salt).MX./(r.^8) - dG_r_MX; % Dispersion -dg(r)/dr
+U_MetHal.dh = alpha.MX*B.MX*exp(-alpha.MX.*r) - k_0*(e_c^2)*q.(Metal)*q.(Halide)./(r.^2) ...
+	+ f_r.*k_0*(e_c^2)*q.(Metal)*q.(Halide)./(r.^2) ...
+    - df_r.*k_0*(e_c^2)*q.(Metal)*q.(Halide)./(r);% Short range repulsion -dh(r)/dr
 
 if contains(vdw_modifier,'potential-shift','IgnoreCase',true)
-    EVDW_Cutoff = B.MX*exp(-alpha.MX.*RVDW_Cutoff) ...
-        - f6_cutoff_MX.*C.(Salt).MX./(RVDW_Cutoff.^6) ...
-        - f8_cutoff_MX.*D.(Salt).MX./(RVDW_Cutoff.^8);
+    EVDW_Cutoff = B.MX*exp(-alpha.MX*RVDW_Cutoff) ...
+        - k_0*(e_c^2)*q.(Metal)*q.(Halide)/(RVDW_Cutoff) ...
+        + f_cutoff*k_0*(e_c^2)*q.(Metal)*q.(Halide)/(RVDW_Cutoff) ...
+        - f6_cutoff_MX*C.(Salt).MX/(RVDW_Cutoff^6) ...
+        - f8_cutoff_MX*D.(Salt).MX/(RVDW_Cutoff^8) ...
+        + G_r_MX_Cutoff;
     
     % Shift by the dispersion energy at vdw cutoff radius. only affects one
     % energy component, not derivatives (i.e. forces)
@@ -728,11 +822,12 @@ U_MetHal = Remove_Infinities(U_MetHal);
 U_MetMet.Total = k_0*(e_c^2)*q.(Metal).*q.(Metal)./(r) ...
     + B.MM*exp(-alpha.MM.*r) ...
     - f6_MM.*C.(Salt).MM./(r.^6) ...
-    - f8_MM.*D.(Salt).MM./(r.^8);
+    - f8_MM.*D.(Salt).MM./(r.^8) ...
+    + G_r_MM;
 
 % components
 U_MetMet.f = 1./r; % Electrostatics function f(r)
-U_MetMet.g = - f6_MM.*C.(Salt).MM./(r.^6) - f8_MM.*D.(Salt).MM./(r.^8); % Dispersion g(r)
+U_MetMet.g = - f6_MM.*C.(Salt).MM./(r.^6) - f8_MM.*D.(Salt).MM./(r.^8) + G_r_MM; % Dispersion g(r)
 U_MetMet.h = B.MM*exp(-alpha.MM.*r); % Short range repulsion
 
 % Plus - Plus Total Derivative
@@ -741,18 +836,20 @@ U_MetMet.dTotal = -k_0*(e_c^2)*q.(Metal).*q.(Metal)./(r.^2) ...
     + f6_MM.*6.*C.(Salt).MM./(r.^7) ...
     - df6_MM.*C.(Salt).MM./(r.^6) ...
     + f8_MM.*8.*D.(Salt).MM./(r.^9) ...
-    - df8_MM.*D.(Salt).MM./(r.^8);
+    - df8_MM.*D.(Salt).MM./(r.^8) ...
+    + dG_r_MM;
 
 % Components
 U_MetMet.df = 1./(r.^2); % Electrostatics function f(r)
 U_MetMet.dg = - f6_MM.*6.*C.(Salt).MM./(r.^7) + df6_MM.*C.(Salt).MM./(r.^6)...
-    - f8_MM.*8.*D.(Salt).MM./(r.^9) + df8_MM.*D.(Salt).MM./(r.^8); % Dispersion g(r)
+    - f8_MM.*8.*D.(Salt).MM./(r.^9) + df8_MM.*D.(Salt).MM./(r.^8) - dG_r_MM; % Dispersion g(r)
 U_MetMet.dh = alpha.MM*B.MM*exp(-alpha.MM.*r); % Short range repulsion
 
 if contains(vdw_modifier,'potential-shift','IgnoreCase',true)
     EVDW_Cutoff = B.MM*exp(-alpha.MM.*RVDW_Cutoff) ...
     - f6_cutoff_MM.*C.(Salt).MM./(RVDW_Cutoff.^6) ...
-    - f8_cutoff_MM.*D.(Salt).MM./(RVDW_Cutoff.^8);
+    - f8_cutoff_MM.*D.(Salt).MM./(RVDW_Cutoff.^8) ...
+    + G_r_MM_Cutoff;
     
     % Shift by the dispersion energy at vdw cutoff radius. only affects one
     % energy component, not derivatives (i.e. forces)
@@ -768,11 +865,12 @@ U_MetMet = Remove_Infinities(U_MetMet);
 U_HalHal.Total = k_0*(e_c^2)*q.(Halide).*q.(Halide)./(r)...
     + B.XX*exp(-alpha.XX.*r) ...
     - f6_XX.*C.(Salt).XX./(r.^6)...
-    - f8_XX.*D.(Salt).XX./(r.^8);
+    - f8_XX.*D.(Salt).XX./(r.^8) ...
+    + G_r_XX;
 
 % components
 U_HalHal.f = 1./r; % Electrostatics function f(r)
-U_HalHal.g = - f6_XX.*C.(Salt).XX./(r.^6) - f8_XX.*D.(Salt).XX./(r.^8); % Dispersion g(r)
+U_HalHal.g = - f6_XX.*C.(Salt).XX./(r.^6) - f8_XX.*D.(Salt).XX./(r.^8) + G_r_XX; % Dispersion g(r)
 U_HalHal.h = B.XX*exp(-alpha.XX.*r); % Short range repulsion
 
 % Minus - Minus Total Derivative
@@ -781,18 +879,20 @@ U_HalHal.dTotal = -k_0*(e_c^2)*q.(Halide).*q.(Halide)./(r.^2)...
     + f6_XX.*6.*C.(Salt).XX./(r.^7) ...
     - df6_XX.*C.(Salt).XX./(r.^6) ...
     + f8_XX.*8.*D.(Salt).XX./(r.^9) ...
-    - df8_XX.*D.(Salt).XX./(r.^8);
+    - df8_XX.*D.(Salt).XX./(r.^8) ...
+    + dG_r_XX;
 
 % components
 U_HalHal.df = 1./(r.^2); % Electrostatics function f(r)
 U_HalHal.dg = - f6_XX.*6.*C.(Salt).XX./(r.^7) + df6_XX.*C.(Salt).XX./(r.^6) ...
-    - f8_XX.*8.*D.(Salt).XX./(r.^9) + df8_XX.*D.(Salt).XX./(r.^8); % Dispersion g(r)
+    - f8_XX.*8.*D.(Salt).XX./(r.^9) + df8_XX.*D.(Salt).XX./(r.^8) - dG_r_XX; % Dispersion g(r)
 U_HalHal.dh = alpha.XX*B.XX*exp(-alpha.XX.*r); % Short range repulsion
 
 if contains(vdw_modifier,'potential-shift','IgnoreCase',true)
     EVDW_Cutoff = B.XX*exp(-alpha.XX.*RVDW_Cutoff) ...
     - f6_cutoff_XX.*C.(Salt).XX./(RVDW_Cutoff.^6)...
-    - f8_cutoff_XX.*D.(Salt).XX./(RVDW_Cutoff.^8);
+    - f8_cutoff_XX.*D.(Salt).XX./(RVDW_Cutoff.^8) ...
+    + G_r_XX_Cutoff;
     
     % Shift by the dispersion energy at vdw cutoff radius. only affects one
     % energy component, not derivatives (i.e. forces)
@@ -824,9 +924,9 @@ if plotswitch
     h = cell(1,8);
     hold on
 
-    h{1} = plot(r,U_MetHal.g,'Color','b','LineWidth',lw,'LineStyle','-');
-    h{2} = plot(r,U_MetMet.g,'Color','r','LineWidth',lw,'LineStyle','-');
-    h{3} = plot(r,U_HalHal.g,'Color','g','LineWidth',lw,'LineStyle','-');
+    h{1} = plot(r,U_MetHal.g+U_MetHal.h,'Color','b','LineWidth',lw,'LineStyle','-');
+    h{2} = plot(r,U_MetMet.g+U_MetMet.h,'Color','r','LineWidth',lw,'LineStyle','-');
+    h{3} = plot(r,U_HalHal.g+U_HalHal.h,'Color','g','LineWidth',lw,'LineStyle','-');
     
 %     dr = r(2) - r(1);
 %     r_d = r(2:end)- dr/2;
@@ -848,8 +948,8 @@ if plotswitch
     xlabel('r (nm)','fontsize',fs,'Interpreter','latex');
     ylabel('Pair Potential (kJ mol$^{-1}$)','fontsize',fs,'Interpreter','latex');
 
-    ylim([-200 50]);
-    xlim([Startpoint Endpoint-2.5]);
+    ylim([-100 500]);
+    xlim([Startpoint Endpoint]);
 
     % Blank line
     hline = refline([0 0]);

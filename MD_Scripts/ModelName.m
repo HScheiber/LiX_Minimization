@@ -1,5 +1,6 @@
 % Function which generates default structure parameters
-function Model_Scaled = ModelName(Model,Damp,TF_Param,S_D,S_R,S_MMD,S_MXD,S_XXD,S_E,S_S,S_A)
+function Model_Scaled = ModelName(Model,Damp,TF_Param,S_D,S_R,S_MMD,S_MXD,S_XXD,S_E,S_S,S_A,...
+    GAdjust_MX,GAdjust_MM,GAdjust_XX)
 
     % Parameter set for TF model
     if TF_Param ~= 0 && strcmp(Model,'TF')
@@ -62,4 +63,19 @@ function Model_Scaled = ModelName(Model,Damp,TF_Param,S_D,S_R,S_MMD,S_MXD,S_XXD,
         Model_Scaled = [Model_Scaled '_MXD' mtxt];
     end
     
+    % For naming purposes
+    G_Adj = '';
+    if sum(GAdjust_MX(:,1)) ~= 0
+        G_Adj = [G_Adj '_GMX'];
+    end
+
+    if sum(GAdjust_MM(:,1)) ~= 0
+        G_Adj = [G_Adj '_GMM'];
+    end
+
+    if sum(GAdjust_XX(:,1)) ~= 0
+        G_Adj = [G_Adj '_GXX'];
+    end
+    
+    Model_Scaled = [Model_Scaled G_Adj];
 end

@@ -78,15 +78,14 @@ Local_Project_Dir = 'C:\Users\Hayden\Documents\Patey_Lab'; % For running local j
 Project_Directory_Name = 'Molten_Salts_MD'; % Name of project directory to contain job
 % This will set up the target server to create your batch script for.
 % Will option will be ignored when running on one of the known compute servers.
-JobSettings.Target_Server = 'sea'; % 'sea' = orciuns, 'ced' = cedar', 'bel' = beluga, 'log' = sockeye, 'gra' = graham.
+JobSettings.Target_Server = 'sea'; % 'sea' = orcinus, 'ced' = cedar', 'bel' = beluga, 'log' = sockeye, 'gra' = graham.
 
-
-%% Job Settings (any of these can be arrays)
+%% Interaction and Structure Settings
 if ~Potential_Input
-    Salts = {'LiF' 'LiCl' 'LiBr' 'LiI' 'NaCl'};
+    % These can be arrays
+    Salts = {'LiCl'};
     Structures = {'Rocksalt'}; %{'Rocksalt' 'Wurtzite' 'Sphalerite' 'CsCl' 'NiAs' 'BetaBeO' 'FiveFive'}; Initial structure
-    Models = {'TF'}; % Input model(s) to use: JC, JC3P, JC4P, TF
-    CRDamping = true;
+    Models = {'JC'}; % Input model(s) to use: JC, JC3P, JC4P, TF		 
     Damping_Funcs = 0; % Input damping functions to use: 0 to 6 are defined
     TF_Paramset = 0; % choose from 0-3
     Scale_Dispersion = 1.0; % Works for both JC and TF
@@ -97,7 +96,22 @@ if ~Potential_Input
     Scale_Epsilon = 1.0; % Scale all Epsilon (affects JC only)
     Scale_Sigma = 1.0; % Scale all Sigma (affects JC only)
     Scale_Alpha = 1.0; % Scale the repulsive exponential parameter alpha (affects TF only)
+    CRDamping = true; % close-range damping
+    
+    % Not arrays
+    OptPos = true; % Optimize both position and lattice parameters when true
+    JobID = ''; % An ID that is tacked onto the folder name
 end
+
+%% Additional Interaction Adjustments (cannot be arrays)
+% GAdjust are N x 3 arrays of gaussian parameters
+% (i , 1) is the Gaussian height of the ith adjustment in kj/mol (may be negative or positive)
+% (i , 2) is the center point of the ith Gaussian in nm (should be positive)
+% (i , 3) is the standard deviation or width in nm (negative and positive values are the same)
+% [0 b c] turns it off (b and c don't matter)
+GAdjust_MX = [-10 0.5 0.018];
+GAdjust_MM = [0 0 1];%[10500 0.1035 0.04];
+GAdjust_XX = [0 0 1];
 
 %% Compute Node settings (only apply for batch jobs)
 JobSettings.Hours = 24; % Max time for each job (hours)
@@ -106,6 +120,7 @@ JobSettings.Cores = 32; % Minimum number of cores to request for calculation
 JobSettings.Mempernode = '0'; % Memory request for server (default = '-1', max per core = '0', eg '3G' for cedar or 3gb for sockeye)
 
 %% Auxiliary Job Settings (select only one)
+JobLinks = 1; % Number of jobs to link together.
 Skip_Minimization = false; % When true, skip the minimization step
 Skip_MD_local = true; % Prevents running the mdrun command locally when true;
 Submit_Jobs = true; % Set to true to submit MD jobs to batch script or to run locally, otherwise just produce input files.
@@ -134,7 +149,7 @@ Expand_c_SC = 1.0;
 
 %% Thermostat Options
 Thermostat = 'nose-hoover'; % Options: 'no' 'berendsen' 'nose-hoover' 'andersen' 'andersen-massive' 'v-rescale' (set NO for NVE)
-Target_T = 298.15; % Target temperature in kelvin. Does not apply when thermostat option 'no' is chosen
+Target_T = 300; % Target temperature in kelvin. Does not apply when thermostat option 'no' is chosen
 Time_Constant_T = 0.4; %[ps] time constant for coupling T. Should be 20*Nsttcouple*timestep
 Nsttcouple = 10; %[ps] The frequency for coupling the temperature. 
 
@@ -187,7 +202,6 @@ MDP_vdw_modifier = 'Potential-shift-Verlet'; % Potential-shift-Verlet, Potential
 
 %% Pre-Minimization Settings
 Maintain_Symmetry = true; % maintains cell symmetry when true
-OptPos = true; % Optimize both position and lattice parameters when true
 OptPos_SingleStage = false; % When true, optimize positions and lattice parameters simultaneously by numerical gradients
 emtol = 0.088439; %1e-3 [kJ mol-1 nm-1] The position minimization is converged (per cycle) when the maximum force is smaller than this value
 MaxCycles = 1000; % Maximum number of optimization cycles.
@@ -217,9 +231,9 @@ Ang_per_nm = 10; % Angstroms per nm
 Longest_Cutoff = max([MDP_RList_Cutoff MDP_RCoulomb_Cutoff MDP_RVDW_Cutoff]);
 
 if ispc % for testing
-    Server = getenv('COMPUTERNAME');
+	Server = getenv('COMPUTERNAME');
     passlog = ' ^&^> ';
-    wsl = 'wsl source ~/.bashrc; ';
+	wsl = 'wsl source ~/.bashrc; ';
     Maindir = [Local_Project_Dir filesep Project_Directory_Name];
     home = [home_dir filesep LiX_Directory];
     gmx = 'wsl source ~/.bashrc; gmx_d';
@@ -228,36 +242,48 @@ elseif isunix
     [~,Servertxt] = system('hostname -s | cut -c 1-3');
     Server = strtrim(Servertxt);
     passlog = ' &> ';
-    wsl = '';
-    if strcmpi(Server,'ced') || strcmpi(Server,'cdr') || strcmpi(Server,'sea') || strcmpi(Server,'pod')
+	wsl = '';
+    if strcmpi(Server,'ced') || strcmpi(Server,'cdr')
+        Maindir = ['/home/' CC_Username '/project/' Project_Directory_Name];
+        home = ['/home/' CC_Username filesep LiX_Directory]; % Cedar
+        sys = @(inp) system(inp);
+        cd(['/home/' CC_Username '/project']);
+        slurm = true;
+    elseif strcmpi(Server,'sea') || strcmpi(Server,'pod') % orcinus
         Maindir = ['/home/' CC_Username '/project/' Project_Directory_Name];
         home = ['/home/' CC_Username filesep LiX_Directory]; % Cedar/Graham/orcinus
         sys = @(inp) system(inp);
         cd(['/home/' CC_Username '/project']);
+        slurm = false;
     elseif ~isempty(regexp(Server,'se[0-9]','ONCE')) || strcmpi(Server,'log')
         Maindir = ['/home/' CWL_Username '/scratch/' Project_Directory_Name];
         home = ['/home/' CWL_Username filesep LiX_Directory]; % Sockeye
         sys = @(inp) system(inp);
         cd(['/home/' CWL_Username '/scratch']);
+        slurm = false;
     elseif strcmpi(Server,'bel')
         Maindir = ['/home/' CC_Username '/project/' Project_Directory_Name];
         home = ['/home/' CC_Username filesep LiX_Directory]; % Beluga
         sys = @(inp) system_def(inp); % Needed to circumvent path error
         cd(['/home/' CC_Username '/project']);
+        slurm = true;
     elseif strcmpi(Server,'pat')
-        Maindir = ['/media/user/project/' Project_Directory_Name];
+        Maindir = ['/home/user/project/' Project_Directory_Name];
         home = ['/home/user/' LiX_Directory]; % Lab PC
         sys = @(inp) system(inp);
+		slurm = false;
     elseif strcmpi(Server,'Han') || strcmp(Server,'dhc')
         sys = @(inp) system(inp);
         home = home_dir;
         gmx = 'source ~/.matlabrc; gmx_d';
         wsl = 'source ~/.matlabrc; ';
         Maindir = [Local_Project_Dir filesep Project_Directory_Name];
+        slurm = false;
     else
         sys = @(inp) system(inp);
         home = home_dir;
         Maindir = [Local_Project_Dir filesep Project_Directory_Name];
+		slurm = false;
     end
 else
     error('Unknown machine type.')
@@ -396,9 +422,6 @@ else
     end
 end
 
-% Current Date
-Date = char(datetime('today','Format','yyyy-MM-dd'));
-
 % Loop through Job List
 for idx = 1:N
     
@@ -408,7 +431,7 @@ for idx = 1:N
             boolean(CRDamping) || boolean(C6Damping);
         
         % Model name
-        Model_Scaled = ModelName(Model,Damp,0,1,1,1,1,1,1,1,1);
+        Model_Scaled = ModelName(Model,Damp,0,1,1,1,1,1,1,1,1,GAdjust_MX,GAdjust_MM,GAdjust_XX);
         Model_Scaled = [Model_Scaled '_' ModelID];
     else
         Salt = Salts{IDX(1,idx)};
@@ -429,11 +452,12 @@ for idx = 1:N
         % Boolean: check if parameters can be input into JC without a table;
         Table_Req = (S_D <= 0) || (S_R <= 0) || ~ismembertol(1.0,S_MMD,1e-5) ...
             || ~ismembertol(1.0,S_XXD,1e-5) || ~ismembertol(1.0,S_MXD,1e-5) ...
-            || Damp ~= 0;
+            || Damp ~= 0 || CRDamping || GAdjust_MX(1,1) ~= 0 || ...
+            GAdjust_MM(1,1) ~= 0 || GAdjust_XX(1,1) ~= 0;
         
         % Generate name for model with current scaling/damping parameters
         Model_Scaled = ModelName(Model,Damp,TF_Param,S_D,S_R,S_MMD,S_MXD,...
-            S_XXD,S_E,S_S,S_A);
+            S_XXD,S_E,S_S,S_A,GAdjust_MX,GAdjust_MM,GAdjust_XX);
     end
     
     % Load Default Geometry info for structure
@@ -460,9 +484,8 @@ for idx = 1:N
     end
     
     % Update Directory
-    JobName = [Date '_' Geometry.Label '_' Model_Scaled '_' Ensemble];
-    TaskName = [Geometry.Label '_' Model_Scaled '_' Ensemble];
-    WorkDir = fullfile(Maindir,Salt,JobName);
+    JobName = [Geometry.Label '_' Model_Scaled '_' Ensemble];
+    WorkDir = fullfile(Maindir,Salt,[JobID '_' JobName]);
     
     % Create directory if it does not exist
     if ~exist(WorkDir,'dir')
@@ -534,7 +557,7 @@ for idx = 1:N
         else
             [TF_U_MX, TF_U_MM, TF_U_XX] = TFd_Potential_Generator(0,Table_Length,...
                 Table_StepSize,Salt,false,Scaling_Params,MDP_vdw_modifier,MDP_RVDW_Cutoff,...
-                Damp,TF_Paramset,Geometry,WorkDir);
+                Damp,TF_Paramset,Geometry,WorkDir,CRDamping,GAdjust_MX,GAdjust_MM,GAdjust_XX);
         end
 
         TableName = [JobName '_Table'];
@@ -570,10 +593,7 @@ for idx = 1:N
 
         % OpenMP does not work with group cutoff
         JobSettings.openMP = false;
-        
-        % Energy conversion setting
-        EnergySetting = '1 2 3 4 28 29 30 31 32 33 0';
-        
+		
     elseif contains(Model,'JC') && ~Table_Req
         switch Model
             case 'JC'
@@ -673,7 +693,7 @@ for idx = 1:N
         else
             [JC_U_MX, JC_U_MM, JC_U_XX] = JCd_Potential_Generator(0,Table_Length,...
                 Table_StepSize,Salt,WaterModel,false,Scaling_Params,MDP_vdw_modifier,...
-                MDP_RVDW_Cutoff,Damp);
+                MDP_RVDW_Cutoff,Damp,CRDamping,GAdjust_MX,GAdjust_MM,GAdjust_XX);
         end
 
         TableName = [JobName '_Table'];
@@ -709,9 +729,6 @@ for idx = 1:N
 
         % OpenMP does not work with group cutoff
         JobSettings.openMP = false;
-
-        % Energy conversion setting
-        EnergySetting = '1 2 3 4 28 29 30 31 32 33 0';
     else
         disp(['Warning: Unknown model type: "' Model '", skipping model...'])
         rmdir(WorkDir)
@@ -843,11 +860,11 @@ for idx = 1:N
     GrompLog_File = fullfile(WorkDir,[JobName '_Grompplog.log']);
 
     % Prepare trajectory file
-    Trajectory_File = fullfile(WorkDir,[JobName '.tpr']);
+    Traj_Conf_File = fullfile(WorkDir,[JobName '.tpr']);
     
     % Add coordinates in xyz space (lattice parameter-dependent)
     if Found_DataMatch
-        
+	
         % Save number of atoms into .mat file
         NumberFile = fullfile(WorkDir,[JobName '.mat']);
         save(NumberFile,'N_total','N_Cell')
@@ -906,34 +923,28 @@ for idx = 1:N
         end
         JobFile = fullfile(MinDir,'TempJobInfo.mat');
         save(JobFile);
-        if ~strcmpi(qsub_cmd,'local')
-            Batch_Text = strrep(Batch_Text,'##PREMIN##',['matlab -r "MD_Preminimization(''' MinDir ''')"']);
+        if strcmpi(qsub_cmd,'local') && Submit_Jobs
+			Batch_Text = strrep(Batch_Text,['##PREMIN##' newline],'');
         else
-            Batch_Text = strrep(Batch_Text,['##PREMIN##' newline],'');
+            Batch_Text = strrep(Batch_Text,'##PREMIN##',['matlab -batch "MD_Preminimization(''' MinDir ''')"']);
         end
     end
     
     % Inital Grompp command
     Grompp_command = [gmx ' grompp -c ' windows2unix(SuperCellFile) ...
         ' -f ' windows2unix(MDP_File) ' -p ' windows2unix(Topology_File) ...
-        ' -o ' windows2unix(Trajectory_File) ' -po ' windows2unix(MDPout_File) ...
+        ' -o ' windows2unix(Traj_Conf_File) ' -po ' windows2unix(MDPout_File) ...
         ' -maxwarn 1 &> ' windows2unix(GrompLog_File) newline];
     
     % Prepare mdrun command
     Log_File = fullfile(WorkDir,[JobName '.log']);
-
     Energy_file = fullfile(WorkDir,[JobName '.edr']);
-
-    TRR_File = fullfile(WorkDir,[JobName '.trr']);
-
+    Trajectory_File = fullfile(WorkDir,[JobName '.trr']);
     ConfOut_File = fullfile(WorkDir,[JobName 'OutConf.' CoordType]);
-
     CheckPoint_File = fullfile(WorkDir,[JobName '.cpt']);
-
     XTC_File = fullfile(WorkDir,[JobName '.xtc']);
-
-    mdrun_command = [gmx ' mdrun -s ' windows2unix(Trajectory_File) ...
-        ' -o ' windows2unix(TRR_File) ' -g ' windows2unix(Log_File) ...
+    mdrun_command = [gmx ' mdrun -s ' windows2unix(Traj_Conf_File) ...
+        ' -o ' windows2unix(Trajectory_File) ' -g ' windows2unix(Log_File) ...
         ' -e ' windows2unix(Energy_file) ' -c ' windows2unix(ConfOut_File) ...
         ' -cpo ' windows2unix(CheckPoint_File)];
 
@@ -957,37 +968,41 @@ for idx = 1:N
         cleanup_command = [cleanup_command wsl 'rm ' windows2unix(ConfOut_File) newline];
     end
     if Delete_TRR
-        cleanup_command = [cleanup_command wsl 'rm ' windows2unix(TRR_File) newline];
+        cleanup_command = [cleanup_command wsl 'rm ' windows2unix(Trajectory_File) newline];
     end
     if Delete_TPR
-        cleanup_command = [cleanup_command wsl 'rm ' windows2unix(Trajectory_File) newline];
+        cleanup_command = [cleanup_command wsl 'rm ' windows2unix(Traj_Conf_File) newline];
     end
     if Delete_Backups
         cleanup_command = [cleanup_command wsl 'find ' windows2unix(WorkDir) ...
             ' -name ''#*#'' -delete' newline]; %#ok<*AGROW>
     end
-    
-    % Place into batch script
+	
     % After the run, convert output trajectory into compressed trajectory file
     if ~Skip_MD_local
         cleanup_command = [cleanup_command wsl ...
-            'echo "0" | ' gmx ' trjconv -f ' windows2unix(TRR_File) ' -s ' windows2unix(Trajectory_File) ...
+            'echo "0" | ' gmx ' trjconv -f ' windows2unix(Trajectory_File) ' -s ' windows2unix(Traj_Conf_File) ...
             ' -pbc atom -ur tric -o ' windows2unix(XTC_File) ' -dt ' num2str(Trajectory_Step)];
         
         clnup_command = cleanup_command;
     else
         clnup_command = [cleanup_command wsl ...
-            'echo "0" | ' gmx ' trjconv -f ' windows2unix(TRR_File) ' -s ' windows2unix(Trajectory_File) ...
+            'echo "0" | ' gmx ' trjconv -f ' windows2unix(Trajectory_File) ' -s ' windows2unix(Traj_Conf_File) ...
             ' -pbc atom -ur tric -o ' windows2unix(XTC_File) ' -dt ' num2str(Trajectory_Step)];
     end
-    
+	
+    % Place into batch script
     Batch_Text = strrep(Batch_Text,'# Run Job',['# Run Job' newline Grompp_command]);
     Batch_Text = strrep(Batch_Text,'##MDRUN##',mdrun_command);
-    Batch_Text = strrep(Batch_Text,'##CLEANUP##',clnup_command);
-    Batch_Text = strrep(Batch_Text,'##TASKNAME##',TaskName);
-    Batch_Text = strrep(Batch_Text,'##ERROR##',windows2unix([WorkDir filesep TaskName]));
+    if JobLinks == 1 || strcmpi(qsub_cmd,'local')
+        Batch_Text = strrep(Batch_Text,'##CLEANUP##',clnup_command);
+    else
+        Batch_Text = strrep(Batch_Text,['##CLEANUP##' newline],'');
+    end
+    Batch_Text = strrep(Batch_Text,'##TASKNAME##',JobName);
+    Batch_Text = strrep(Batch_Text,'##ERROR##',windows2unix([WorkDir filesep JobName]));
     Batch_Text = strrep(Batch_Text,'##DIRECTORY##',windows2unix(WorkDir));
-    
+	
     if strcmpi(qsub_cmd,'local') % For running local jobs
         Server = JobSettings.Target_Server;
         if strcmpi(JobSettings.Target_Server,'ced') || ... % Cedar/Graham/orcinus
@@ -1008,7 +1023,7 @@ for idx = 1:N
             Targethome = ['/home/' CC_Username filesep LiX_Directory]; % Beluga
         elseif strcmpi(JobSettings.Target_Server,'pat')
             
-            TargetMaindir = ['/media/user/project/' Project_Directory_Name];
+            TargetMaindir = ['/home/user/project/' Project_Directory_Name];
             Targethome = ['/home/user/' LiX_Directory]; % Lab PC
         else
             error(['Unknown target server for submission script: ' JobSettings.Target_Server]);
@@ -1016,7 +1031,12 @@ for idx = 1:N
         Batch_Text = strrep(Batch_Text,windows2unix(Maindir),TargetMaindir);
     end
     
-    % Open and save batch script
+    % Shorten max time to allow ~10 minutes for pre-minimization
+    if ~Found_DataMatch
+        regexprep(Batch_Text,'-maxh ([0-9]|\.)',['-maxh ' num2str(JobSettings.Hours-0.17)])
+    end
+	
+    % Open and save batch scripts
     subm_file = fullfile(WorkDir,[JobName '.subm']);
     fidBS = fopen(subm_file,'wt');
     fwrite(fidBS,regexprep(Batch_Text,{'\r' wsl},{'' ''}));
@@ -1024,7 +1044,7 @@ for idx = 1:N
 
     % Submit job
     disp('Job input files produced for:')
-    disp([Salt ' ' TaskName])
+    disp([Salt ' ' JobName])
     if Submit_Jobs && strcmpi(qsub_cmd,'local')       
         
         disp('Starting Job Locally.')
@@ -1043,10 +1063,51 @@ for idx = 1:N
             end
         end
         system(cleanup_command);
-        
+		
     elseif Submit_Jobs
-        sys([qsub_cmd ' ' fullfile(WorkDir,[JobName '.subm'])]);
-        disp('Job submitted.')
+        [~,output] = sys([qsub_cmd ' ' fullfile(WorkDir,[JobName '.subm'])]);
+        disp('Job (Link 1) submitted.')
+		
+        PrevJobID = regexp(output,'[0-9]+','match','ONCE');
+        cpt_output_prev = CheckPoint_File
+
+        % Make additional links
+        for jdx = 2:JobLinks
+            
+            Index = ['-' num2str(jdx,'%03.0f')];
+            
+            cpt_output_i = fullfile(WorkDir,[JobName Index '.cpt']);
+            TaskName_i = [JobName Index];
+            
+            % Edit mdrun
+            mdrun_command_i = regexrep(mdrun_command,'-cpo [^\s]+ *',['-cpo ' cpt_output_i])
+            mdrun_command_i = [mdrun_command_i ' -cpi ' cpt_output_prev];
+            
+            Batch_Text_i = strrep(Batch_Template,['##PREMIN##' newline],'');
+            Batch_Text_i = strrep(Batch_Text_i,'##ERROR##',TaskName_i);
+            Batch_Text_i = strrep(Batch_Text_i,'##TASKNAME##',TaskName_i);
+            Batch_Text_i = strrep(Batch_Text_i,'##TASKNAME##',TaskName_i);
+            Batch_Text_i = strrep(Batch_Text_i,'##DIRECTORY##',WorkDir);
+            Batch_Text_i = strrep(Batch_Text_i,'##MDRUN##',mdrun_command_i);
+            
+            if jdx == Batch_Text_i
+                Batch_Text = strrep(Batch_Text_i,'##CLEANUP##',cleanup_command);
+            else
+                Batch_Text = strrep(Batch_Text_i,'##CLEANUP##','');
+            end
+            
+            if slurm
+                [~,output] = sys([qsub_cmd ' --depend=afterany:' PrevJobID ' ' fullfile(WorkDir,[TaskName_i '.subm'])]);
+            else
+                [~,output] = sys([qsub_cmd ' -W depend=afterany:' PrevJobID ' ' fullfile(WorkDir,[TaskName_i '.subm'])]);
+            end
+            
+            disp(['Job (Link ' num2str(jdx) ' ) submitted.'])
+            
+            % Update previous job stuff
+            cpt_output_prev = cpt_output_i;
+            PrevJobID = regexp(output,'[0-9]+','match','ONCE')
+        end
     end
 end
 
