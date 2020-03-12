@@ -85,7 +85,8 @@ JobSettings.Target_Server = 'sea'; % 'sea' = orciuns, 'ced' = cedar', 'bel' = be
 if ~Potential_Input
     Salts = {'LiF' 'LiCl' 'LiBr' 'LiI' 'NaCl'};
     Structures = {'Rocksalt'}; %{'Rocksalt' 'Wurtzite' 'Sphalerite' 'CsCl' 'NiAs' 'BetaBeO' 'FiveFive'}; Initial structure
-    Models = {'JC'}; % Input model(s) to use: JC, JC3P, JC4P, TF
+    Models = {'TF'}; % Input model(s) to use: JC, JC3P, JC4P, TF
+    CRDamping = true;
     Damping_Funcs = 0; % Input damping functions to use: 0 to 6 are defined
     TF_Paramset = 0; % choose from 0-3
     Scale_Dispersion = 1.0; % Works for both JC and TF
@@ -215,10 +216,8 @@ MinMDP.VerletBT = -1; % This sets the maximum allowed error for pair interaction
 Ang_per_nm = 10; % Angstroms per nm
 Longest_Cutoff = max([MDP_RList_Cutoff MDP_RCoulomb_Cutoff MDP_RVDW_Cutoff]);
 
-% Generate bash script for batch job
-[Batch_Template,qsub_cmd,gmx,Server] = MD_Batch_Template(JobSettings);
-
 if ispc % for testing
+    Server = getenv('COMPUTERNAME');
     passlog = ' ^&^> ';
     wsl = 'wsl source ~/.bashrc; ';
     Maindir = [Local_Project_Dir filesep Project_Directory_Name];
@@ -226,6 +225,8 @@ if ispc % for testing
     gmx = 'wsl source ~/.bashrc; gmx_d';
     sys = @(inp) system(inp); 
 elseif isunix
+    [~,Servertxt] = system('hostname -s | cut -c 1-3');
+    Server = strtrim(Servertxt);
     passlog = ' &> ';
     wsl = '';
     if strcmpi(Server,'ced') || strcmpi(Server,'cdr') || strcmpi(Server,'sea') || strcmpi(Server,'pod')
@@ -474,9 +475,6 @@ for idx = 1:N
     % Copy MDP Template
     MDP_Text = MDP_Template;
     
-    % Copy batch job Template
-    Batch_Text = Batch_Template;
-    
     % Structure Template filename
     Coordinate_File = fullfile(home,'templates',[upper(CoordType) '_Templates'],...
         [Structure '.' CoordType]);
@@ -571,15 +569,11 @@ for idx = 1:N
         MDP_Text = strrep(MDP_Text,'##RVDW##',pad(num2str(MDP_RVDW_Setup),18));
 
         % OpenMP does not work with group cutoff
-        Batch_Text = strrep(Batch_Text,'$OMP_NUM_THREADS','1');
-        mpiproc = regexp(Batch_Text,'mpiprocs=([0-9]+)','tokens','ONCE');
-        ompthreads = regexp(Batch_Text,'ompthreads=([0-9]+)','tokens','ONCE');
-        if ~isempty(mpiproc) && ~isempty(ompthreads)
-            CR = str2double(mpiproc{1})*str2double(ompthreads{1});
-            Batch_Text = strrep(Batch_Text,['mpiprocs=' mpiproc{1}],['mpiprocs=' num2str(CR)]);
-            Batch_Text = strrep(Batch_Text,['ompthreads=' ompthreads{1}],'ompthreads=1');
-        end
-
+        JobSettings.openMP = false;
+        
+        % Energy conversion setting
+        EnergySetting = '1 2 3 4 28 29 30 31 32 33 0';
+        
     elseif contains(Model,'JC') && ~Table_Req
         switch Model
             case 'JC'
@@ -638,8 +632,10 @@ for idx = 1:N
         % Add in Verlet Settings
         if strcmp(MDP_CutOffScheme,'Verlet')
             MDP_Text = strrep(MDP_Text,'##VerletBT##',pad(num2str(MDP_VerletBT),18));
+            JobSettings.openMP = true;
         else
             MDP_Text = regexprep(MDP_Text,'verlet-buffer-tolerance.+?\n','');
+            JobSettings.openMP = false;
         end
 
         % Energy conversion setting
@@ -712,14 +708,7 @@ for idx = 1:N
         MDP_Text = strrep(MDP_Text,'##RVDW##',pad(num2str(MDP_RVDW_Setup),18));
 
         % OpenMP does not work with group cutoff
-        Batch_Text = strrep(Batch_Text,'$OMP_NUM_THREADS','1');
-        mpiproc = regexp(Batch_Text,'mpiprocs=([0-9]+)','tokens','ONCE');
-        ompthreads = regexp(Batch_Text,'ompthreads=([0-9]+)','tokens','ONCE');
-        if ~isempty(mpiproc) && ~isempty(ompthreads)
-            CR = str2double(mpiproc{1})*str2double(ompthreads{1});
-            Batch_Text = strrep(Batch_Text,['mpiprocs=' mpiproc{1}],['mpiprocs=' num2str(CR)]);
-            Batch_Text = strrep(Batch_Text,['ompthreads=' ompthreads{1}],'ompthreads=1');
-        end
+        JobSettings.openMP = false;
 
         % Energy conversion setting
         EnergySetting = '1 2 3 4 28 29 30 31 32 33 0';
@@ -728,6 +717,9 @@ for idx = 1:N
         rmdir(WorkDir)
         continue
     end
+    
+    % Generate bash script for batch job
+    [Batch_Text,qsub_cmd,gmx,~] = MD_Batch_Template(JobSettings);
 
     % Update MDP file with cutoff stuff
     MDP_Text = strrep(MDP_Text,'##VDWMOD##',pad(MDP_vdw_modifier,18));
