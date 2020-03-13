@@ -118,9 +118,9 @@ JobSettings.Hours = 24; % Max time for each job (hours)
 JobSettings.Mins = 0; % Max time for job (minutes)
 JobSettings.Cores = 32; % Minimum number of cores to request for calculation
 JobSettings.Mempernode = '0'; % Memory request for server (default = '-1', max per core = '0', eg '3G' for cedar or 3gb for sockeye)
+JobLinks = 1; % Number of jobs to link together.
 
 %% Auxiliary Job Settings (select only one)
-JobLinks = 1; % Number of jobs to link together.
 Skip_Minimization = false; % When true, skip the minimization step
 Skip_MD_local = true; % Prevents running the mdrun command locally when true;
 Submit_Jobs = true; % Set to true to submit MD jobs to batch script or to run locally, otherwise just produce input files.
@@ -736,7 +736,8 @@ for idx = 1:N
     end
     
     % Generate bash script for batch job
-    [Batch_Text,qsub_cmd,gmx,~] = MD_Batch_Template(JobSettings);
+    [Batch_Template,qsub_cmd,gmx,~] = MD_Batch_Template(JobSettings);
+    Batch_Text = Batch_Template;
 
     % Update MDP file with cutoff stuff
     MDP_Text = strrep(MDP_Text,'##VDWMOD##',pad(MDP_vdw_modifier,18));
@@ -1033,10 +1034,10 @@ for idx = 1:N
     
     % Shorten max time to allow ~10 minutes for pre-minimization
     if ~Found_DataMatch
-        regexprep(Batch_Text,'-maxh ([0-9]|\.)',['-maxh ' num2str(JobSettings.Hours-0.17)])
+        Batch_Text = regexprep(Batch_Text,'-maxh ([0-9]|\.)',['-maxh ' num2str(JobSettings.Hours-0.17)]);
     end
 	
-    % Open and save batch scripts
+    % Open and save batch script
     subm_file = fullfile(WorkDir,[JobName '.subm']);
     fidBS = fopen(subm_file,'wt');
     fwrite(fidBS,regexprep(Batch_Text,{'\r' wsl},{'' ''}));
@@ -1069,7 +1070,7 @@ for idx = 1:N
         disp('Job (Link 1) submitted.')
 		
         PrevJobID = regexp(output,'[0-9]+','match','ONCE');
-        cpt_output_prev = CheckPoint_File
+        cpt_output_prev = CheckPoint_File;
 
         % Make additional links
         for jdx = 2:JobLinks
@@ -1077,36 +1078,42 @@ for idx = 1:N
             Index = ['-' num2str(jdx,'%03.0f')];
             
             cpt_output_i = fullfile(WorkDir,[JobName Index '.cpt']);
-            TaskName_i = [JobName Index];
+            JobName_i = [JobName Index];
             
             % Edit mdrun
-            mdrun_command_i = regexrep(mdrun_command,'-cpo [^\s]+ *',['-cpo ' cpt_output_i])
+            mdrun_command_i = regexprep(mdrun_command,'-cpo [^\s]+ *',['-cpo ' cpt_output_i ' ']);
             mdrun_command_i = [mdrun_command_i ' -cpi ' cpt_output_prev];
             
             Batch_Text_i = strrep(Batch_Template,['##PREMIN##' newline],'');
-            Batch_Text_i = strrep(Batch_Text_i,'##ERROR##',TaskName_i);
-            Batch_Text_i = strrep(Batch_Text_i,'##TASKNAME##',TaskName_i);
-            Batch_Text_i = strrep(Batch_Text_i,'##TASKNAME##',TaskName_i);
+            Batch_Text_i = strrep(Batch_Text_i,'##ERROR##',JobName_i);
+            Batch_Text_i = strrep(Batch_Text_i,'##TASKNAME##',JobName_i);
+            Batch_Text_i = strrep(Batch_Text_i,'##TASKNAME##',JobName_i);
             Batch_Text_i = strrep(Batch_Text_i,'##DIRECTORY##',WorkDir);
             Batch_Text_i = strrep(Batch_Text_i,'##MDRUN##',mdrun_command_i);
             
-            if jdx == Batch_Text_i
-                Batch_Text = strrep(Batch_Text_i,'##CLEANUP##',cleanup_command);
+            if jdx == JobLinks
+                Batch_Text_i = strrep(Batch_Text_i,'##CLEANUP##',cleanup_command);
             else
-                Batch_Text = strrep(Batch_Text_i,'##CLEANUP##','');
+                Batch_Text_i = strrep(Batch_Text_i,'##CLEANUP##','');
             end
             
+            % Save batch script
+            subm_file = fullfile(WorkDir,[JobName_i '.subm']);
+            fidBS = fopen(subm_file,'wt');
+            fwrite(fidBS,regexprep(Batch_Text_i,{'\r' wsl},{'' ''}));
+            fclose(fidBS);
+			
             if slurm
-                [~,output] = sys([qsub_cmd ' --depend=afterany:' PrevJobID ' ' fullfile(WorkDir,[TaskName_i '.subm'])]);
+                [~,output] = sys([qsub_cmd ' --depend=afterany:' PrevJobID ' ' fullfile(WorkDir,[JobName_i '.subm'])]);
             else
-                [~,output] = sys([qsub_cmd ' -W depend=afterany:' PrevJobID ' ' fullfile(WorkDir,[TaskName_i '.subm'])]);
+                [~,output] = sys([qsub_cmd ' -W depend=afterany:' PrevJobID ' ' fullfile(WorkDir,[JobName_i '.subm'])]);
             end
             
-            disp(['Job (Link ' num2str(jdx) ' ) submitted.'])
+            disp(['Job (Link ' num2str(jdx) ') submitted.'])
             
             % Update previous job stuff
             cpt_output_prev = cpt_output_i;
-            PrevJobID = regexp(output,'[0-9]+','match','ONCE')
+            PrevJobID = regexp(output,'[0-9]+','match','ONCE');
         end
     end
 end
