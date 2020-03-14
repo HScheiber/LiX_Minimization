@@ -738,6 +738,8 @@ for idx = 1:N
     % Generate bash script for batch job
     [Batch_Template,qsub_cmd,gmx,~] = MD_Batch_Template(JobSettings);
     Batch_Text = Batch_Template;
+    Batch_Text = strrep(Batch_Text,['##EXT1##' newline],'');
+    Batch_Text = strrep(Batch_Text,['##EXT2##' newline],'');
 
     % Update MDP file with cutoff stuff
     MDP_Text = strrep(MDP_Text,'##VDWMOD##',pad(MDP_vdw_modifier,18));
@@ -1072,6 +1074,8 @@ for idx = 1:N
         PrevJobID = regexp(output,'[0-9]+','match','ONCE');
         cpt_output_prev = CheckPoint_File;
 
+        EXT1 = ['if [ ! -f "' ConfOut_File '" ]; then'];
+        EXT2 = 'fi';
         % Make additional links
         for jdx = 2:JobLinks
             
@@ -1085,10 +1089,11 @@ for idx = 1:N
             mdrun_command_i = [mdrun_command_i ' -cpi ' cpt_output_prev];
             
             Batch_Text_i = strrep(Batch_Template,['##PREMIN##' newline],'');
-            Batch_Text_i = strrep(Batch_Text_i,'##ERROR##',JobName_i);
-            Batch_Text_i = strrep(Batch_Text_i,'##TASKNAME##',JobName_i);
+            Batch_Text_i = strrep(Batch_Text_i,'##ERROR##',fullfile(WorkDir,JobName_i));
             Batch_Text_i = strrep(Batch_Text_i,'##TASKNAME##',JobName_i);
             Batch_Text_i = strrep(Batch_Text_i,'##DIRECTORY##',WorkDir);
+            Batch_Text_i = strrep(Batch_Text_i,'##EXT1##',EXT1);
+            Batch_Text_i = strrep(Batch_Text_i,'##EXT2##',EXT2);
             Batch_Text_i = strrep(Batch_Text_i,'##MDRUN##',mdrun_command_i);
             
             if jdx == JobLinks
@@ -1102,7 +1107,7 @@ for idx = 1:N
             fidBS = fopen(subm_file,'wt');
             fwrite(fidBS,regexprep(Batch_Text_i,{'\r' wsl},{'' ''}));
             fclose(fidBS);
-			
+            
             if slurm
                 [~,output] = sys([qsub_cmd ' --depend=afterany:' PrevJobID ' ' fullfile(WorkDir,[JobName_i '.subm'])]);
             else

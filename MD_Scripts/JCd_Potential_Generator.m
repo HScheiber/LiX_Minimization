@@ -434,7 +434,7 @@ end
 G_r_MM = zeros(1,length(r));
 dG_r_MM = zeros(1,length(r));
 G_r_MM_Cutoff = 0;
-for i = length(G_a_MM)
+for i = 1:length(G_a_MM)
     G_r_MM = G_r_MM + G_a_MM(i).*exp((-(r - G_b_MM(i)).^2)./(2.*(G_c_MM(i).^2)));
     G_r_MM_Cutoff = G_r_MM_Cutoff + G_a_MM(i)*exp((-(RVDW_Cutoff - G_b_MM(i))^2)/(2*(G_c_MM(i)^2)));
     dG_r_MM = dG_r_MM - (G_a_MM(i).*(r - G_b_MM(i))).*(exp((-(r - G_b_MM(i)).^2)./(2.*(G_c_MM(i).^2))))/(G_c_MM(i).^2);
@@ -443,7 +443,7 @@ end
 G_r_XX = zeros(1,length(r));
 dG_r_XX = zeros(1,length(r));
 G_r_XX_Cutoff = 0;
-for i = length(G_a_XX)
+for i = 1:length(G_a_XX)
     G_r_XX = G_r_XX + G_a_XX(i).*exp((-(r - G_b_XX(i)).^2)./(2.*(G_c_XX(i).^2)));
 	G_r_XX_Cutoff = G_r_XX_Cutoff + G_a_XX(i)*exp((-(RVDW_Cutoff - G_b_XX(i))^2)/(2*(G_c_XX(i)^2)));
     dG_r_XX = dG_r_XX - (G_a_XX(i).*(r - G_b_XX(i))).*(exp((-(r - G_b_XX(i)).^2)./(2.*(G_c_XX(i).^2))))/(G_c_XX(i).^2);
@@ -452,7 +452,7 @@ end
 G_r_MX = zeros(1,length(r));
 dG_r_MX = zeros(1,length(r));
 G_r_MX_Cutoff = 0;
-for i = length(G_a_MX)
+for i = 1:length(G_a_MX)
     G_r_MX = G_r_MX + G_a_MX(i).*exp((-(r - G_b_MX(i)).^2)./(2.*(G_c_MX(i).^2)));
     G_r_MX_Cutoff = G_r_MX_Cutoff + G_a_MX(i)*exp((-(RVDW_Cutoff - G_b_MX(i))^2)/(2*(G_c_MX(i)^2)));
     dG_r_MX = dG_r_MX - (G_a_MX(i).*(r - G_b_MX(i))).*(exp((-(r - G_b_MX(i)).^2)./(2.*(G_c_MX(i).^2))))/(G_c_MX(i).^2);
