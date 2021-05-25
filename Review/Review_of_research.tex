@@ -1,0 +1,229 @@
+% "spell_check": true,
+% "dictionary": "Packages/Language - English/en_US.dic"
+%\documentclass[preprint,aps,prb,floatfix,hidelinks]{revtex4-1}
+\documentclass[aip,preprint,amsmath,amssymb,hidelinks]{revtex4-1}
+%\documentclass[journal=jpcbfk, manuscript=article]{achemso}
+%\usepackage{achemso}
+%\setkeys{acs}{usetitle = true}
+\usepackage[pdftex]{graphicx,color,epsfig}
+\usepackage[table,xcdraw]{xcolor}
+\usepackage{dcolumn} % Align table columns on decimal point
+\usepackage{graphicx}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{bm} % Bold math
+\usepackage[figuresleft]{rotating}
+\usepackage[mathscr]{eucal}
+\usepackage{threeparttable}
+\usepackage{amsmath}
+\usepackage[sort&compress]{natbib}
+\usepackage{multirow}
+\usepackage{booktabs}
+\usepackage{geometry}
+\usepackage{mathtools} % Boxes
+\usepackage{siunitx} % SI units
+\usepackage{enumitem} % Resetting counter
+\usepackage{braket}
+\usepackage{float}
+\usepackage{textcomp}
+\usepackage{gensymb}
+\usepackage{ragged2e}
+\usepackage{setspace}
+\usepackage{wrapfig}
+\usepackage[utf8]{inputenc} % Required for inputting international characters
+\usepackage[T1]{fontenc} % Output font encoding for international characters
+%\usepackage{mathpazo} % Palatino font
+\usepackage{mathptmx}
+\usepackage{chngpage}
+\usepackage{xr} % external references
+\usepackage{hyperref}
+\usepackage{jabbrv}
+
+%\usepackage[mathlines]{lineno}% Enable numbering of text and display math
+%\linenumbers\relax % Commence numbering lines
+
+
+\maxdeadcycles=200 % required to fix low level error
+
+% Folder for figures
+\newcommand{\HOS}{{\color{red}HOS}}
+\newcommand{\Ham}{\widehat{\mathcal{H}}}
+
+\externaldocument[SI-]{DFT_Lithium_Halides_Supplementary_Info}
+
+% End of Section Numbering Customization
+
+\AtBeginDocument{
+	\heavyrulewidth=.08em
+	\lightrulewidth=.05em
+	\cmidrulewidth=.03em
+	\belowrulesep=.65ex
+	\belowbottomsep=0pt
+	\aboverulesep=.4ex
+	\abovetopsep=0pt
+	\cmidrulesep=\doublerulesep
+	\cmidrulekern=.5em
+	\defaultaddspace=.5em
+}
+\begin{document}
+\date{\today}
+
+	\author{H. Deng}
+	\author{H. O. Scheiber}
+	\author{R. Krems}
+	\author{M. Thachuk}
+	\author{G. N. Patey}
+	\affiliation{Department of Chemistry, University of British Columbia,
+		Vancouver, British Columbia, Canada V6T 1Z1}
+	
+	\title{Beyesian Machine Learning for Chemical Model Building - Research Overview}
+	
+	\newcommand{\kJmol}{kJ mol$^{-1}$}
+	\newcommand{\boldr}{{\bm r}}
+	\bibliographystyle{jabbrv_apsrev4-1}
+
+	\maketitle
+	
+	\section{What we have achieved so far}
+	
+	The research began with the development of two optimization algorithms. 
+	The first algorithm, written by Hayden, takes as input an initial guess geometry for an infinite LiX crystal and a model pairwise interaction of Coulomb-Lennard-Jones (CLJ, e.g. Jeung-Cheatham model~\cite{Joung2008}) or Coulomb-Buckingham (e.g. Tosi-Fumi~\cite{Tosi1964,Fumi1964}) type. It outputs the nearest local minimum of energy configuration, with its full geometry and $\SI{0}{\kelvin}$ energetics.
+	The algorithm allows for flexibility in the number of constraints. There are three levels of constraint:
+	\begin{enumerate}
+		\item The most constrained (and fastest) optimization constrains the fractional coordinates of atoms, the space group, and the full symmetry of the ideal/experimental unit cell. For example, this level of constraint applied to rocksalt optimization requires optimization of a single lattice parameter, $a$ with the rest of the geometry being related by constraints.
+		\item At this level of constraint fractional coordinates of atoms within the unit cell are allowed to change, but the cell symmetry and space group remain fixed.
+		\item The fractional coordinates and cell symmetry are unconstrained. The unit cell is placed into the P1 space group and all atoms in the unit cell are allowed to optimize freely.
+	\end{enumerate}
+	
+	
+	One should note that at all levels of constraint, the number of atoms in the unit cell remains fixed. 
+	The algorithm itself is a straightforward gradient descent algorithm, which is described in detail in the appendix.
+	Note that the calculation of energies is performed via GROMACS, but GROMACS does not have an in-build optimization algorithm for lattice vectors so it was necessary to write one.
+	We found that it was sufficient to use the most constrained optimization without significant deviation from less constrained options, as this greatly sped up calculation times.
+	
+	
+	The second algorithm, written by Hancock, is a Bayesian machine learning algorithm which is able to efficiently optimize input parameters in high-dimension spaces to multiple targets simultaneously. This second algorithm uses the first algorithm as a ``black-box'', placing inputs and extracting outputs without regard to the internal workings. Hancock has developed his algorithm to search through the space of Lennard-Jones (LJ) parameters of a CLJ pairwise force field, which acts as an \textit{effective potential} to use in classical lithium halide chemical simulations. The targets of his search are variable, but were always experimentally derived or calculated from high-accuracy DFT simulations of lithium halide crystals using CRYSTAL17~\cite{Crystal17} software.
+	
+	
+	The full details of this algorithm can be found in Hancock's thesis.
+	In the case of the CLJ type (JC-like) potential, 
+	\begin{equation}
+	u_{ij} (r_{ij}) = \frac{1}{4 \pi \varepsilon_{0}}\frac{q_{i} q_{j} }{r_{ij}} + 4 \epsilon_{ij} \bigg[ \big(\frac{\sigma_{ij}}{r_{ij}} \big)^{12} - \big(\frac{\sigma_{ij}}{r_{ij}} \big)^{6} \bigg]
+	\end{equation}
+	the algorithm takes as input a range for 6 (or 4 when using combining rules) model parameters, a LiX salt, and experimentally derived targets such as rocksalt lattice parameters and lattice energies. The model parameters to optimize are $\varepsilon_{ij}$ and $\sigma_{ij}$. When using combining rules, only $\varepsilon_{ii}$ and $\sigma_{ii}$ are input. The remaining parameters are constructed from the Lorentz-Berthelot combining rules~\cite{lorentz1881ueber,berthelot1898melange}
+	\begin{align}
+	\sigma_{ij} &= \frac{\sigma_{i} + \sigma_{j}}{2}\\
+	\epsilon_{ij} &= \sqrt{\epsilon_{i} \epsilon_{j}}.
+	\end{align}
+	The radius of cross-term LJ well is the arithmetic mean of the two radii, and the well depth is the geometric mean.
+	
+	Hancock's algorithm searches through the range of model parameters in an initial training phase, then begins optimization of the model parameters towards the given targets. The algorithm uses Bayesian statistics to constantly update its internal knowledge of the best possible parameters. In this way, the algorithm is made extremely efficient for searching high-dimensional parameter spaces.
+	
+	After a period of time spent exploring the effect of using various targets for Hancock's algorithm, we settled on a series of LJ parameters (for the CLJ pairwise model) which are optimized as much as possible to the following targets:
+	\begin{enumerate}
+		\item The energy difference between rocksalt and wurtzite crystal structures is $15 - \SI{5}{\kilo\joule\per\mole}$, with rocksalt as the overall lowest energy crystal structure.
+		\item The experimental rocksalt lattice parameters.
+		\item The experimental (or DFT-calculated for LiF) wurtzite lattice parameters.
+	\end{enumerate}
+	It was found that one \textit{cannot} optimize to these targets and the \textit{absolute} experimental lattice energy of the LiX rocksalt crystal structure simultaneously. It seems that only two of three types of targets can be solved simultaneously.
+	\begin{itemize}
+	\item The lattice parameters and relative energies crystal structures can be simultaneously solved for, leaving large errors in the absolute lattice energy.
+	\item The lattice parameters and absolute rocksalt lattice energies can be simultaneously solved for, but wurtzite becomes the lowest energy crystal structure.
+	\item The relative energies of the crystal structures and the absolute rocksalt lattice energy can be solved for, but lattice parameters become too large.
+	\end{itemize}
+	A few other observations are notable. The most useful properties to solve for when studying LiX nucleation (one possible end goal of this research) are relative crystal structure stability and (rocksalt) lattice parameters. When these targets are chosen for model parameter optimization, a trend in absolute rocksalt lattice energies appears. One observes that the smaller the halide of the LiX salt, the larger the error in the absolute lattice energy becomes when the other targets are optimized. Furthermore, decreasing the relative difference in energy target between rocksalt and wurtzite structures from $15$ to $\SI{0}{\kilo\joule\per\mole}$ systematically reduces the error in the absolute rocksalt lattice energy. Something in the model itself appears to prevent optimization to all physical properties of LiX salts simultaneously. It is not currently known why this deficiency exists.
+	
+	It was suggested that damping of the model's $1/r^6$ dispersion term at close range could tip results in favour of rocksalt, since wurtzite crystals have a shorter nearest-neighbour bond length than rocksalt for a given salt and model. A fixed-parameter Becke-Johnson ``rational damping''~\cite{Becke2007,Grimme2011} factor was introduced, transforming the $1/r^6$ term into
+	\begin{equation}
+		\frac {  C_{6,ij} } { R _ { \text {0}, i j } ^ { 6 } + r _ { i j }^{ 6 } }
+		\label{eq:Dispersion}
+	\end{equation}
+	where $C_{6,ij} =  4\varepsilon_{ij} \sigma^6$ and $R _ { \text {0,ij}}$ defines the radius where damping begins to denominate the dispersion. Although $R _ { \text {0}, i j } ^ { 6 }$ is in principle a parameter which could be further optimized, we instead derived its value in each case from the relationship
+	\begin{equation}
+		R_{0,ij} = \sqrt{\frac{C_{8,ij}}{C_{6,ij}}}.
+	\end{equation}
+	where $C_{6,ij}$ is obtained directly from the input parameters, and $C_{8,ij}$ is derived from a recurrence relationship discussed in Ref.~\citenum{Grimme2011}
+	\begin{align}
+		C_{8,ij} = 3 C_{6,ij} \sqrt{Q_{i} Q_{j}}\\
+		Q_{i} = s_{42} \sqrt{Z_{i}}\frac{\langle r^{4}\rangle_{i}}{\langle r^{6}\rangle_{i}}.
+	\end{align}
+	The empirical values of $Q_{i}$ were taken directly form Grimme's D3 paper.~\cite{Grimme2011} Application of the Becke-Johnson rational damping scheme was found to improve the resulting rocksalt absolute lattice energies significantly when rocksalt-wurtzite energy differences and rocksalt lattice parameters were chosen as optimization targets. However, a large error in the absolute rocksalt lattice energies remains.
+	
+	After much tinkering with Hancock's algorithm, we found that when targetting relative rocksalt-wurtzite lattice energies and lattice parameters, the resulting optimized model parameters had the following characteristics:
+	\begin{itemize}
+		\item $\sigma_{ij}$ model parameters are found to be clustered into small ranges. The parameter range is salt-dependent.
+		\item $\varepsilon_{ij}$ are found to be dispersed relatively widely.
+		\item All model parameters yield very similar absolute rocksalt lattice energies, despite absolute lattice energy not being a target.
+	\end{itemize}
+	In other words, the location of the LJ well minimum (and corresponding repulsive wall) are much more important than the LJ well depth for the three properties of interest in this study. This begs the obvious question: is there another physical observable which we can use to narrow down the set of model parameters obtained so far? Or is the LJ well depth of little consequence for all physical properties of the lithium halides?
+	
+	The first physical observable we decided to check is the melting point. Checking the melting point of all model parameter sets is computationally costly, so a selection of three optimized parameter sets for each LiX salt was chosen, representing a range of $\varepsilon_{ij}$ values. To check the melting point of a model, there are several theoretical approaches which are discussed in detail in Ref.~\citenum{zhang2012comparison}. So far, we have attempted to heat a perfect LiX crystal (consisting of ~10000 atoms with periodic boundary conditions) slowly until melting is observed at $T^{+}$, followed by a short equilibration period, and finally a slow cooling until nucleation occurs at $T^{-}$.
+	
+	Using this technique, the melting point $T_m$ can be approximated as
+	\begin{equation}
+	T_m \approx T^{+} + T^{-} - \sqrt{T^{+}  T^{-}}.
+	\end{equation}
+	
+	
+	\section{Future Direction}
+	
+	At this point, there appears to be little need to perform further model parameter optimizations using Hancock's machine learning algorithm. We have obtained a large set of viable LJ parameters for the pairwise CLJ LiX models. Performing machine learning on further targets such as the melting point becomes too computationally costly. A more traditional approach will be used moving forward.
+	
+	
+	\subsection{Melting Points}
+	
+	High quality melting points should be obtained  for a selection of models. It should be possible to obtain very precise measurements of melting points, using two phase solid-liquid coexistence simulations. A solid and liquid will only exist in equilibrium very near the true melting point of a given model.
+	
+	We should therefore obtain high quality MD simulations for each LiX salt using three models of varying $\sigma_{ij}$. This should be performed in the NPT ensemble with $P = 1 \text{atm}$ and compared with experimental melting points. The codes to initiate these calculations have already been written. One can obtain an initial geometry with both liquid and solid phases from preliminary melting/freezing cycle simulations already performed.
+
+	\subsection{Dynamic Properties}
+	
+	In the future, other physical properties of the LiX system can potentially be studied in an attempt to improve narrow down our set of parameters. The following is a list of experimental LiX properties from the literature.
+	\begin{itemize}
+	\item Thermal conductivities of molten LiF, LiCl, and LiBr have been measured as a function of temperature.~\cite{smirnov1987thermal}
+	\item Thermal diffusivity of molten LiCl is available.~\cite{nagasaka1992experimental}
+	\item Electrical conductivity of molten LiCl has been measured at $\SI{700}{\degreeCelsius}$.~\cite{edwards1952electrical}
+	\item Electrical conductivity of molten LiBr and LiI are measured for a range of temperatures.~\cite{yaffe1956electrical}
+	\item LiF, LiCl, LiBr, LiI comprehensibilities/bulk moduli are available under ambient conditions.~\cite{slater1924compressibility,vaidya1971compressibility} However, we know the CLJ potential has the wrong shape of repulsive wall to model comprehensibilities correctly. We expect that comprehensibilities will be quite poor for all models.
+	\item Molten LiCl, Libr, and LiI radial distribution functions and neutron/X-ray scattering properties are available.~\cite{levy1960x}
+	\item Molten LiX densities and surface tensions are available.~\cite{smirnov1982density}
+	\item LiX solubilities in water are well known. The JC model~\cite{Joung2008} (CLJ type) gets solubilities off by an order of magnitude. It would be worth checking to see if any of these models improve upon the solubility. We would use the same water-ion parameters as in the JC model, only the Ion-Ion parameters would change.
+	\item Molten LiCl and LiBr comprehensibilities are measured.~\cite{bockris1957compressibilities}
+	\end{itemize}
+
+	It seems that the most relevant physical property to study is the LiX-water solubility. Exploring both melting points and solubilities, combined with everything else done so far, should be sufficient for the paper. For studies of melting points and solubilities, it's important to quantify any errors that we can. These include errors due to finite size, finite time step, cutoffs, and random variability. MD simulations can be replicated to quantify random variability in the results.
+	
+	\clearpage
+	\bibliography{references}
+	\clearpage
+	
+	\section{Appendix}
+	
+	\subsection{Geometry Optimization of Lattice Parameters using Empirical Models}
+	\label{EmpiricalGeometryOpt}
+	
+	In order to generate fully optimized geometries with the TF, JC, and any DFT-D4 models, we designed and implemented a gradient descent optimization scheme written in MATLAB version R2019a. Initial input unit cell geometries were typically taken from the experiments where available, or from outputs of ab initio geometry optimization calculations with fixed ideal fractional coordinates. The first stage of the geometry optimization algorithm calculates three-point numerical derivatives with respect to all unit cell parameters ($a$, $b$, $c$, $\alpha$, $\beta$, and $\gamma$). This is done via a triplet of single point energy calculations with GROMACS using settings tuned for high accuracy. Unit cell parameters which are constrained by the symmetry of the particular structure's space group were normally held fixed. Loosening of the symmetry constraint (i.e. placing the unit cells in space group P1) did not significantly change the resulting optimized structures or lattice energies. Numerical derivative step sizes $h$ are initially chosen as
+	\begin{align}
+	h_{\omega} = \text{max}(\SI{e-4}{}\omega,\SI{e-7}{}) 
+	\end{align} 
+	where $\omega$ is the differentiated parameter. After numerical differentiation of the lattice parameters, an appropriate step in the direction of the gradient is calculated. The step size is initialized as $\eta \vec{\nu}$ where
+	\begin{align}
+	\vec{\nu} = - \vec{\nabla} E_{L} (\vec{x}).
+	\end{align}
+	$\eta$ is a step-size parameter initially set to 1.0 but regularly updated. $\vec{x}$ is a vector of the degrees of freedom (i.e. the differentiable lattice parameters). Each new step of the geometry optimization is tested to satisfy the Armijo-Goldstein inequality~\cite{armijo1966minimization,dennis1996numerical}
+	\begin{align}
+	E(\vec{x} + \eta \vec{\nu}) \leq E(\vec{x}) - c \eta || \vec{\nabla} E (\vec{x}) ||^{2},
+	\end{align}
+	where $c$ is an arbitrary fixed parameter which we set to $0.5$ for all calculations. If the above inequality is not satisfied at a particular optimization step, then $\eta$ is repeatedly updated by
+	\begin{align}
+	\eta_{new} = \lambda \eta
+	\end{align}
+	until the inequality is satisfied or 10 attempts are made. We found that $\lambda = 0.1$ is satisfactory for our geometry optimization calculations. If 10 attempts are made without satisfying the Armijo-Goldstein inequality, the gradient is discarded and a new gradient is calculated from numerical derivative step sizes $0.1$ that of the current. Once the Armijo-Goldstein inequality is satisfied, $\vec{x} + \eta \vec{\nu}$ becomes the new central point with lattice energy $E(\vec{x} + \eta \vec{\nu})$. After each successful optimization step, $\eta$ is scaled up by 1.5 for the next step.
+	
+	During the second stage of our geometry optimization scheme, unit cell parameters are held fixed while the fractional coordinates of the ions are minimized by the built-in steepest-descent algorithm in GROMACS.~\cite{gromacs2018manual} This stage may be skipped, and instead the fractional coordinates of the asymmetric unit are minimized along with the unit cell parameters as previously described. However, the two stage process is faster. Within this second stage, minimization of fractional coordinates was considered converged once the maximum calculated force is smaller than $\SI{0.88}{\kilo\joule\per\mole\per\angstrom}$. After convergence of the second stage, the change between the initial energy (prior to stage 1) and final energy (following stage 2) was saved. 
+	
+	Three criteria are required for final convergence: the root-mean-squared of the (stage 1) gradient must be less than $\SI{0.59}{\kilo\joule\per\mole\per\angstrom}$ (the units change if cell angles or fractional coordinates are also optimized); the maximum absolute value of any component of the gradient must be less than $\SI{0.88}{\kilo\joule\per\mole\per\angstrom}$ or $\SI{0.88}{\kilo\joule\per\mole\per\degree}$; and the change in energy between optimization cycles must be less than $\SI{e-4}{\kilo\joule\per\mole}$. If these three criteria were not met, the process was iterated at the new geometry. If the change in energy between optimization cycles was less than $\SI{e-4}{\kilo\joule\per\mole}$, but the gradient criteria were not satisfied, then $\eta$ was reset to 1.0 before the next iteration.
+	
+	In practice, we found that optimization with respect only to symmetry-allowed lattice parameters was sufficient to reach near the unconstrained energy minimum, within $\SI{2}{\kilo\joule\per\mole}$. By optimizing only these degrees of freedom, the geometry optimization convergence rate was accelerated greatly. By using a gradient descent algorithm, we ensured that the structure with the ``nearest'' local minimum of energy (without an intervening energy barrier) was always found.
+	
+\end{document}

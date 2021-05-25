@@ -1,0 +1,63 @@
+This is BibTeX, Version 0.99d (MiKTeX 2.9.7380 64-bit)
+Capacity: max_strings=200000, hash_size=200000, hash_prime=170003
+The top-level auxiliary file: Review_of_research.aux
+The style file: jabbrv_apsrev4-1.bst
+Reallocating 'singl_function' (item size: 4) to 100 items.
+Reallocating 'singl_function' (item size: 4) to 100 items.
+Reallocating 'singl_function' (item size: 4) to 100 items.
+Reallocating 'singl_function' (item size: 4) to 100 items.
+Reallocating 'singl_function' (item size: 4) to 100 items.
+Reallocating 'singl_function' (item size: 4) to 100 items.
+Reallocating 'wiz_functions' (item size: 4) to 6000 items.
+Database file #1: Review_of_researchNotes.bib
+Database file #2: references.bib
+Reallocating 'singl_function' (item size: 4) to 100 items.
+merlin.mbs apsrev4-1.bst 2010-07-25 4.21a (PWD, AO, DPC) hacked
+Control: key (0) 
+Control: author (72) initials jnrlst
+Control: editor formatted (1) identically to author
+Control: production of article title (-1) disabled
+Control: page (0) single
+Control: year (1) truncated
+Control: production of eprint (0) enabled
+You've used 21 entries,
+            5849 wiz_defined-function locations,
+            1769 strings with 19323 characters,
+and the built_in function-call counts, 20274 in all, are:
+= -- 1339
+> -- 498
+< -- 135
++ -- 164
+- -- 114
+* -- 3142
+:= -- 2016
+add.period$ -- 22
+call.type$ -- 21
+change.case$ -- 87
+chr.to.int$ -- 21
+cite$ -- 21
+duplicate$ -- 1890
+empty$ -- 1498
+format.name$ -- 303
+if$ -- 3997
+int.to.chr$ -- 1
+int.to.str$ -- 29
+missing$ -- 240
+newline$ -- 115
+num.names$ -- 63
+pop$ -- 805
+preamble$ -- 1
+purify$ -- 105
+quote$ -- 0
+skip$ -- 743
+stack$ -- 0
+substring$ -- 497
+swap$ -- 1771
+text.length$ -- 57
+text.prefix$ -- 0
+top$ -- 8
+type$ -- 287
+warning$ -- 0
+while$ -- 61
+width$ -- 0
+write$ -- 223

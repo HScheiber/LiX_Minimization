@@ -1,0 +1,263 @@
+%merlin.mbs apsrev4-1.bst 2010-07-25 4.21a (PWD, AO, DPC) hacked
+%Control: key (0)
+%Control: author (72) initials jnrlst
+%Control: editor formatted (1) identically to author
+%Control: production of article title (-1) disabled
+%Control: page (0) single
+%Control: year (1) truncated
+%Control: production of eprint (0) enabled
+\begin{thebibliography}{21}%
+\makeatletter
+\providecommand \@ifxundefined [1]{%
+ \@ifx{#1\undefined}
+}%
+\providecommand \@ifnum [1]{%
+ \ifnum #1\expandafter \@firstoftwo
+ \else \expandafter \@secondoftwo
+ \fi
+}%
+\providecommand \@ifx [1]{%
+ \ifx #1\expandafter \@firstoftwo
+ \else \expandafter \@secondoftwo
+ \fi
+}%
+\providecommand \natexlab [1]{#1}%
+\providecommand \enquote  [1]{``#1''}%
+\providecommand \bibnamefont  [1]{#1}%
+\providecommand \bibfnamefont [1]{#1}%
+\providecommand \citenamefont [1]{#1}%
+\providecommand \href@noop [0]{\@secondoftwo}%
+\providecommand \href [0]{\begingroup \@sanitize@url \@href}%
+\providecommand \@href[1]{\@@startlink{#1}\@@href}%
+\providecommand \@@href[1]{\endgroup#1\@@endlink}%
+\providecommand \@sanitize@url [0]{\catcode `\\12\catcode `\$12\catcode
+  `\&12\catcode `\#12\catcode `\^12\catcode `\_12\catcode `\%12\relax}%
+\providecommand \@@startlink[1]{}%
+\providecommand \@@endlink[0]{}%
+\providecommand \url  [0]{\begingroup\@sanitize@url \@url }%
+\providecommand \@url [1]{\endgroup\@href {#1}{\urlprefix }}%
+\providecommand \urlprefix  [0]{URL }%
+\providecommand \Eprint [0]{\href }%
+\providecommand \doibase [0]{http://dx.doi.org/}%
+\providecommand \selectlanguage [0]{\@gobble}%
+\providecommand \bibinfo  [0]{\@secondoftwo}%
+\providecommand \bibfield  [0]{\@secondoftwo}%
+\providecommand \translation [1]{[#1]}%
+\providecommand \BibitemOpen [0]{}%
+\providecommand \bibitemStop [0]{}%
+\providecommand \bibitemNoStop [0]{.\EOS\space}%
+\providecommand \EOS [0]{\spacefactor3000\relax}%
+\providecommand \BibitemShut  [1]{\csname bibitem#1\endcsname}%
+\let\auto@bib@innerbib\@empty
+%</preamble>
+\bibitem [{\citenamefont {Joung}\ and\ \citenamefont
+  {Cheatham}(2008)}]{Joung2008}%
+  \BibitemOpen
+  \bibfield  {author} {\bibinfo {author} {\bibfnamefont {I.~S.}\ \bibnamefont
+  {Joung}}\ and\ \bibinfo {author} {\bibfnamefont {T.~E.}\ \bibnamefont
+  {Cheatham}},\ }\href {\doibase 10.1021/jp8001614} {\bibfield  {journal}
+  {\bibinfo  {journal} {\protect\JournalTitle{Journal of Physical Chemistry
+  B}}\ }\textbf {\bibinfo {volume} {112}},\ \bibinfo {pages} {9020} (\bibinfo
+  {year} {2008})}\BibitemShut {NoStop}%
+\bibitem [{\citenamefont {Tosi}\ and\ \citenamefont {Fumi}(1964)}]{Tosi1964}%
+  \BibitemOpen
+  \bibfield  {author} {\bibinfo {author} {\bibfnamefont {M.~P.}\ \bibnamefont
+  {Tosi}}\ and\ \bibinfo {author} {\bibfnamefont {F.~G.}\ \bibnamefont
+  {Fumi}},\ }\href {\doibase https://doi.org/10.1016/0022-3697(64)90160-X}
+  {\bibfield  {journal} {\bibinfo  {journal} {\protect\JournalTitle{Journal of
+  Physics and Chemistry of Solids}}\ }\textbf {\bibinfo {volume} {25}},\
+  \bibinfo {pages} {45} (\bibinfo {year} {1964})}\BibitemShut {NoStop}%
+\bibitem [{\citenamefont {Fumi}\ and\ \citenamefont {Tosi}(1964)}]{Fumi1964}%
+  \BibitemOpen
+  \bibfield  {author} {\bibinfo {author} {\bibfnamefont {F.}~\bibnamefont
+  {Fumi}}\ and\ \bibinfo {author} {\bibfnamefont {M.}~\bibnamefont {Tosi}},\
+  }\href {\doibase 10.1016/0022-3697(64)90159-3} {\bibfield  {journal}
+  {\bibinfo  {journal} {\protect\JournalTitle{Journal of Physics and Chemistry
+  of Solids}}\ }\textbf {\bibinfo {volume} {25}},\ \bibinfo {pages} {31}
+  (\bibinfo {year} {1964})}\BibitemShut {NoStop}%
+\bibitem [{\citenamefont {Dovesi}\ \emph {et~al.}(2018)\citenamefont {Dovesi},
+  \citenamefont {Erba}, \citenamefont {Orlando}, \citenamefont
+  {Zicovich-Wilson}, \citenamefont {Civalleri}, \citenamefont {Maschio},
+  \citenamefont {Rérat}, \citenamefont {Casassa}, \citenamefont {Baima},
+  \citenamefont {Salustro},\ and\ \citenamefont {Kirtman}}]{Crystal17}%
+  \BibitemOpen
+  \bibfield  {author} {\bibinfo {author} {\bibfnamefont {R.}~\bibnamefont
+  {Dovesi}}, \bibinfo {author} {\bibfnamefont {A.}~\bibnamefont {Erba}},
+  \bibinfo {author} {\bibfnamefont {R.}~\bibnamefont {Orlando}}, \bibinfo
+  {author} {\bibfnamefont {C.~M.}\ \bibnamefont {Zicovich-Wilson}}, \bibinfo
+  {author} {\bibfnamefont {B.}~\bibnamefont {Civalleri}}, \bibinfo {author}
+  {\bibfnamefont {L.}~\bibnamefont {Maschio}}, \bibinfo {author} {\bibfnamefont
+  {M.}~\bibnamefont {Rérat}}, \bibinfo {author} {\bibfnamefont
+  {S.}~\bibnamefont {Casassa}}, \bibinfo {author} {\bibfnamefont
+  {J.}~\bibnamefont {Baima}}, \bibinfo {author} {\bibfnamefont
+  {S.}~\bibnamefont {Salustro}}, \ and\ \bibinfo {author} {\bibfnamefont
+  {B.}~\bibnamefont {Kirtman}},\ }\href {\doibase 10.1002/wcms.1360} {\bibfield
+   {journal} {\bibinfo  {journal} {\protect\JournalTitle{Wiley
+  Interdisciplinary Reviews: Computational Molecular Science}}\ }\textbf
+  {\bibinfo {volume} {8}},\ \bibinfo {pages} {e1360} (\bibinfo {year}
+  {2018})},\ \Eprint
+  {http://arxiv.org/abs/https://onlinelibrary.wiley.com/doi/pdf/10.1002/wcms.1360}
+  {https://onlinelibrary.wiley.com/doi/pdf/10.1002/wcms.1360} \BibitemShut
+  {NoStop}%
+\bibitem [{\citenamefont {Lorentz}(1881)}]{lorentz1881ueber}%
+  \BibitemOpen
+  \bibfield  {author} {\bibinfo {author} {\bibfnamefont {H.}~\bibnamefont
+  {Lorentz}},\ }\href@noop {} {\bibfield  {journal} {\bibinfo  {journal}
+  {\protect\JournalTitle{Ann. der Phys.}}\ }\textbf {\bibinfo {volume} {248}},\
+  \bibinfo {pages} {127} (\bibinfo {year} {1881})}\BibitemShut {NoStop}%
+\bibitem [{\citenamefont {Berthelot}(1898)}]{berthelot1898melange}%
+  \BibitemOpen
+  \bibfield  {author} {\bibinfo {author} {\bibfnamefont {D.}~\bibnamefont
+  {Berthelot}},\ }\href@noop {} {\bibfield  {journal} {\bibinfo  {journal}
+  {\protect\JournalTitle{Compt. Rendus}}\ }\textbf {\bibinfo {volume} {126}},\
+  \bibinfo {pages} {1703} (\bibinfo {year} {1898})}\BibitemShut {NoStop}%
+\bibitem [{\citenamefont {Becke}\ and\ \citenamefont
+  {Johnson}(2007)}]{Becke2007}%
+  \BibitemOpen
+  \bibfield  {author} {\bibinfo {author} {\bibfnamefont {A.~D.}\ \bibnamefont
+  {Becke}}\ and\ \bibinfo {author} {\bibfnamefont {E.~R.}\ \bibnamefont
+  {Johnson}},\ }\href {\doibase 10.1063/1.2768530} {\bibfield  {journal}
+  {\bibinfo  {journal} {\protect\JournalTitle{Journal of Chemical Physics}}\
+  }\textbf {\bibinfo {volume} {127}},\ \bibinfo {pages} {124108} (\bibinfo
+  {year} {2007})},\ \Eprint
+  {http://arxiv.org/abs/https://doi.org/10.1063/1.2768530}
+  {https://doi.org/10.1063/1.2768530} \BibitemShut {NoStop}%
+\bibitem [{\citenamefont {Grimme}\ \emph {et~al.}(2011)\citenamefont {Grimme},
+  \citenamefont {Ehrlich},\ and\ \citenamefont {Goerigk}}]{Grimme2011}%
+  \BibitemOpen
+  \bibfield  {author} {\bibinfo {author} {\bibfnamefont {S.}~\bibnamefont
+  {Grimme}}, \bibinfo {author} {\bibfnamefont {S.}~\bibnamefont {Ehrlich}}, \
+  and\ \bibinfo {author} {\bibfnamefont {L.}~\bibnamefont {Goerigk}},\ }\href
+  {\doibase 10.1002/jcc.21759} {\bibfield  {journal} {\bibinfo  {journal}
+  {\protect\JournalTitle{Journal of Computational Chemistry}}\ }\textbf
+  {\bibinfo {volume} {32}},\ \bibinfo {pages} {1456} (\bibinfo {year}
+  {2011})},\ \Eprint
+  {http://arxiv.org/abs/https://onlinelibrary.wiley.com/doi/pdf/10.1002/jcc.21759}
+  {https://onlinelibrary.wiley.com/doi/pdf/10.1002/jcc.21759} \BibitemShut
+  {NoStop}%
+\bibitem [{\citenamefont {Zhang}\ and\ \citenamefont
+  {Maginn}(2012)}]{zhang2012comparison}%
+  \BibitemOpen
+  \bibfield  {author} {\bibinfo {author} {\bibfnamefont {Y.}~\bibnamefont
+  {Zhang}}\ and\ \bibinfo {author} {\bibfnamefont {E.~J.}\ \bibnamefont
+  {Maginn}},\ }\href@noop {} {\bibfield  {journal} {\bibinfo  {journal}
+  {\protect\JournalTitle{The Journal of chemical physics}}\ }\textbf {\bibinfo
+  {volume} {136}},\ \bibinfo {pages} {144116} (\bibinfo {year}
+  {2012})}\BibitemShut {NoStop}%
+\bibitem [{\citenamefont {Smirnov}\ \emph {et~al.}(1987)\citenamefont
+  {Smirnov}, \citenamefont {Khokhlov},\ and\ \citenamefont
+  {Filatov}}]{smirnov1987thermal}%
+  \BibitemOpen
+  \bibfield  {author} {\bibinfo {author} {\bibfnamefont {M.}~\bibnamefont
+  {Smirnov}}, \bibinfo {author} {\bibfnamefont {V.}~\bibnamefont {Khokhlov}}, \
+  and\ \bibinfo {author} {\bibfnamefont {E.}~\bibnamefont {Filatov}},\
+  }\href@noop {} {\bibfield  {journal} {\bibinfo  {journal}
+  {\protect\JournalTitle{Electrochimica acta}}\ }\textbf {\bibinfo {volume}
+  {32}},\ \bibinfo {pages} {1019} (\bibinfo {year} {1987})}\BibitemShut
+  {NoStop}%
+\bibitem [{\citenamefont {Nagasaka}\ \emph {et~al.}(1992)\citenamefont
+  {Nagasaka}, \citenamefont {Nakazawa},\ and\ \citenamefont
+  {Nagashima}}]{nagasaka1992experimental}%
+  \BibitemOpen
+  \bibfield  {author} {\bibinfo {author} {\bibfnamefont {Y.}~\bibnamefont
+  {Nagasaka}}, \bibinfo {author} {\bibfnamefont {N.}~\bibnamefont {Nakazawa}},
+  \ and\ \bibinfo {author} {\bibfnamefont {A.}~\bibnamefont {Nagashima}},\
+  }\href@noop {} {\bibfield  {journal} {\bibinfo  {journal}
+  {\protect\JournalTitle{International journal of thermophysics}}\ }\textbf
+  {\bibinfo {volume} {13}},\ \bibinfo {pages} {555} (\bibinfo {year}
+  {1992})}\BibitemShut {NoStop}%
+\bibitem [{\citenamefont {Edwards}\ \emph {et~al.}(1952)\citenamefont
+  {Edwards}, \citenamefont {Taylor}, \citenamefont {Russell},\ and\
+  \citenamefont {Maranville}}]{edwards1952electrical}%
+  \BibitemOpen
+  \bibfield  {author} {\bibinfo {author} {\bibfnamefont {J.~D.}\ \bibnamefont
+  {Edwards}}, \bibinfo {author} {\bibfnamefont {C.~S.}\ \bibnamefont {Taylor}},
+  \bibinfo {author} {\bibfnamefont {A.~S.}\ \bibnamefont {Russell}}, \ and\
+  \bibinfo {author} {\bibfnamefont {L.~F.}\ \bibnamefont {Maranville}},\
+  }\href@noop {} {\bibfield  {journal} {\bibinfo  {journal}
+  {\protect\JournalTitle{Journal of The Electrochemical Society}}\ }\textbf
+  {\bibinfo {volume} {99}},\ \bibinfo {pages} {527} (\bibinfo {year}
+  {1952})}\BibitemShut {NoStop}%
+\bibitem [{\citenamefont {Yaffe}\ and\ \citenamefont
+  {Van~Artsdalen}(1956)}]{yaffe1956electrical}%
+  \BibitemOpen
+  \bibfield  {author} {\bibinfo {author} {\bibfnamefont {I.}~\bibnamefont
+  {Yaffe}}\ and\ \bibinfo {author} {\bibfnamefont {B.}~\bibnamefont
+  {Van~Artsdalen}},\ }\href@noop {} {\bibfield  {journal} {\bibinfo  {journal}
+  {\protect\JournalTitle{The Journal of Physical Chemistry}}\ }\textbf
+  {\bibinfo {volume} {60}},\ \bibinfo {pages} {1125} (\bibinfo {year}
+  {1956})}\BibitemShut {NoStop}%
+\bibitem [{\citenamefont {Slater}(1924)}]{slater1924compressibility}%
+  \BibitemOpen
+  \bibfield  {author} {\bibinfo {author} {\bibfnamefont {J.~C.}\ \bibnamefont
+  {Slater}},\ }\href@noop {} {\bibfield  {journal} {\bibinfo  {journal}
+  {\protect\JournalTitle{Physical Review}}\ }\textbf {\bibinfo {volume} {23}},\
+  \bibinfo {pages} {488} (\bibinfo {year} {1924})}\BibitemShut {NoStop}%
+\bibitem [{\citenamefont {Vaidya}\ and\ \citenamefont
+  {Kennedy}(1971)}]{vaidya1971compressibility}%
+  \BibitemOpen
+  \bibfield  {author} {\bibinfo {author} {\bibfnamefont {S.}~\bibnamefont
+  {Vaidya}}\ and\ \bibinfo {author} {\bibfnamefont {G.}~\bibnamefont
+  {Kennedy}},\ }\href@noop {} {\bibfield  {journal} {\bibinfo  {journal}
+  {\protect\JournalTitle{Journal of Physics and Chemistry of Solids}}\ }\textbf
+  {\bibinfo {volume} {32}},\ \bibinfo {pages} {951} (\bibinfo {year}
+  {1971})}\BibitemShut {NoStop}%
+\bibitem [{\citenamefont {Levy}\ \emph {et~al.}(1960)\citenamefont {Levy},
+  \citenamefont {Agron}, \citenamefont {Bredig},\ and\ \citenamefont
+  {Danford}}]{levy1960x}%
+  \BibitemOpen
+  \bibfield  {author} {\bibinfo {author} {\bibfnamefont {H.}~\bibnamefont
+  {Levy}}, \bibinfo {author} {\bibfnamefont {P.}~\bibnamefont {Agron}},
+  \bibinfo {author} {\bibfnamefont {M.}~\bibnamefont {Bredig}}, \ and\ \bibinfo
+  {author} {\bibfnamefont {M.}~\bibnamefont {Danford}},\ }\href@noop {}
+  {\bibfield  {journal} {\bibinfo  {journal} {\protect\JournalTitle{Annals of
+  the New York Academy of Sciences}}\ }\textbf {\bibinfo {volume} {79}},\
+  \bibinfo {pages} {762} (\bibinfo {year} {1960})}\BibitemShut {NoStop}%
+\bibitem [{\citenamefont {Smirnov}\ and\ \citenamefont
+  {Stepanov}(1982)}]{smirnov1982density}%
+  \BibitemOpen
+  \bibfield  {author} {\bibinfo {author} {\bibfnamefont {M.}~\bibnamefont
+  {Smirnov}}\ and\ \bibinfo {author} {\bibfnamefont {V.}~\bibnamefont
+  {Stepanov}},\ }\href@noop {} {\bibfield  {journal} {\bibinfo  {journal}
+  {\protect\JournalTitle{Electrochimica Acta}}\ }\textbf {\bibinfo {volume}
+  {27}},\ \bibinfo {pages} {1551} (\bibinfo {year} {1982})}\BibitemShut
+  {NoStop}%
+\bibitem [{\citenamefont {Bockris}\ and\ \citenamefont
+  {Richards}(1957)}]{bockris1957compressibilities}%
+  \BibitemOpen
+  \bibfield  {author} {\bibinfo {author} {\bibfnamefont {J.~O.}\ \bibnamefont
+  {Bockris}}\ and\ \bibinfo {author} {\bibfnamefont {N.}~\bibnamefont
+  {Richards}},\ }\href@noop {} {\bibfield  {journal} {\bibinfo  {journal}
+  {\protect\JournalTitle{Proceedings of the Royal Society of London. Series A.
+  Mathematical and Physical Sciences}}\ }\textbf {\bibinfo {volume} {241}},\
+  \bibinfo {pages} {44} (\bibinfo {year} {1957})}\BibitemShut {NoStop}%
+\bibitem [{\citenamefont {Armijo}(1966)}]{armijo1966minimization}%
+  \BibitemOpen
+  \bibfield  {author} {\bibinfo {author} {\bibfnamefont {L.}~\bibnamefont
+  {Armijo}},\ }\href@noop {} {\bibfield  {journal} {\bibinfo  {journal}
+  {\protect\JournalTitle{Pacific Journal of mathematics}}\ }\textbf {\bibinfo
+  {volume} {16}},\ \bibinfo {pages} {1} (\bibinfo {year} {1966})}\BibitemShut
+  {NoStop}%
+\bibitem [{\citenamefont {Dennis~Jr}\ and\ \citenamefont
+  {Schnabel}(1996)}]{dennis1996numerical}%
+  \BibitemOpen
+  \bibfield  {author} {\bibinfo {author} {\bibfnamefont {J.~E.}\ \bibnamefont
+  {Dennis~Jr}}\ and\ \bibinfo {author} {\bibfnamefont {R.~B.}\ \bibnamefont
+  {Schnabel}},\ }\href@noop {} {\emph {\bibinfo {title} {Numerical methods for
+  unconstrained optimization and nonlinear equations}}},\ Vol.~\bibinfo
+  {volume} {16}\ (\bibinfo  {publisher} {Siam},\ \bibinfo {year}
+  {1996})\BibitemShut {NoStop}%
+\bibitem [{\citenamefont {Lindahl}\ \emph {et~al.}(2018)\citenamefont
+  {Lindahl}, \citenamefont {Hess}, \citenamefont {Abraham}, \citenamefont
+  {van~der Spoel},\ and\ \citenamefont {the GROMACS~development
+  team}}]{gromacs2018manual}%
+  \BibitemOpen
+  \bibfield  {author} {\bibinfo {author} {\bibfnamefont {E.}~\bibnamefont
+  {Lindahl}}, \bibinfo {author} {\bibfnamefont {B.}~\bibnamefont {Hess}},
+  \bibinfo {author} {\bibfnamefont {M.}~\bibnamefont {Abraham}}, \bibinfo
+  {author} {\bibfnamefont {D.}~\bibnamefont {van~der Spoel}}, \ and\ \bibinfo
+  {author} {\bibnamefont {the GROMACS~development team}},\ }\href@noop {}
+  {\enquote {\bibinfo {title} {Gromacs reference manual version 2018},}\
+  }\bibinfo {howpublished} {www.gromacs.org} (\bibinfo {year}
+  {2018})\BibitemShut {NoStop}%
+\end{thebibliography}%
